@@ -1,0 +1,7 @@
+pip
+ipython
+pandas
+web3
+
+
+
