@@ -1,6 +1,8 @@
 import pandas as pd
 from py0xcluster.utils import web3_utils, requests_utils
 
+
+
 class Entity():
     chain_ID: str
     address: str
@@ -12,6 +14,46 @@ class Entity():
 class EntityGroup():
     def __init__(self, addresses):
         ...
+
+class Pools():
+    def __init__(self, dex_name: str = 'univ2', 
+            subgraph_url: str = 'https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2'):
+        
+        self.dex_name = dex_name
+        self.subgraph_url = subgraph_url
+
+    def get_pools_by_liquidity(self, min_amount: int = 1000, amount_curr: str = 'usd') -> pd.DataFrame:
+        # initialization for pagination of query results
+        baseobjects = 'pairs'
+
+        if amount_curr.lower() == 'eth':
+            query = '''
+                query($max_rows: Int $skip: Int orderBy$min_reserveETH: Int)
+                {
+                    pairs(first: $max_rows skip: $skip orderBy: reserveETH orderDirection:desc where: {
+                    reserveETH_gt: $min_reserveETH
+                }) {
+                    id
+                    token0 {
+                    symbol
+                    id
+                    }
+                    token1 {
+                    symbol
+                    id
+                    }
+                    reserveETH
+                    reserveUSD
+                    }
+                }
+                '''
+            variables = {
+                'min_reserveETH' : min_amount,
+                }
+    
+            full_df = requests_utils.df_from_queries(self.subgraph_url, query, variables, baseobjects)
+
+        return full_df
 
 class Trades():
     def __init__(self, symbol):
@@ -26,7 +68,7 @@ class TradesDEX(Trades):
 #    """docstring for TradesDEX"""
 #    def __init__(self):
 #        super(graphQL, self).__init__() # Ineresting this use of super, dont fully understand why he would do that
-#        print(self.params["subgraph_url"],' ',self.params["pair_address"])
+#        print(self.variables["subgraph_url"],' ',self.variables["pair_address"])
     def find_pair(self):
         NotImplementedError()
         self.pair_address = []
@@ -36,10 +78,10 @@ class TradesDEX(Trades):
         ...
     
 
-    def get_mints(self, dex, params):
+    def get_mints(self, dex, variables):
         ...
     
-    def get_burns(self, dex, params):
+    def get_burns(self, dex, variables):
         ...
 
     def preprocess_raw_swaps(self):
@@ -53,18 +95,14 @@ class TradesDEX(Trades):
         
         
 
-    def get_swaps(self, dex, params):
+    def get_swaps(self, dex, variables):
 
 
         if dex == 'uni2':
             subgraph_url = 'https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2'
-        # print('vartype', type(variables['max_rows']))
-        #Variable declaration for the query, these are reffered in the query with $ 
-       
-                    #todo, start end etc 
-        
-        # $pair_address
-        # 0xce84867c3c02b05dc570d0135103d3fb9cc19433
+
+        baseobjects = 'swaps'
+
         # Construct variable query
         queryTemplate = """
         query($max_rows: Int $skip: Int $pair_address: ID! $timestamp_start: BigInt $timestamp_end: BigInt)
@@ -108,23 +146,8 @@ class TradesDEX(Trades):
             }
         }
         """
-        full_df = pd.DataFrame()
-        
-        params['max_rows'] = 500
-        params['skip'] = 0
 
-        resp = requests_utils.run_query(subgraph_url, queryTemplate, params)
-        resp_bout = pd.json_normalize(resp['data']['swaps'],  max_level=2)
-        # print(resp_bout)
-        while resp_bout.shape[0] > 0:
-            
-            resp = requests_utils.run_query(subgraph_url, queryTemplate, params)
-            resp_bout = pd.json_normalize(resp['data']['swaps'],  max_level=2)
-            
-            # print(resp_bout.head(5))
-
-            full_df = pd.concat([full_df, resp_bout], axis=0)
-            params['skip'] += params['max_rows']
+        full_df = requests_utils.df_from_queries(subgraph_url, queryTemplate, variables, baseobjects)
 
         full_df[['amount0In','amount1In','amount0Out','amount1Out','amountUSD']] = full_df[['amount0In','amount1In','amount0Out','amount1Out','amountUSD']].astype(float)    
         full_df['pd_datetime'] = pd.Series(pd.to_datetime(pd.to_numeric(full_df['timestamp'], downcast=None),unit='s'))
@@ -132,5 +155,6 @@ class TradesDEX(Trades):
         
         self.data = full_df
         return full_df
+
 
 
