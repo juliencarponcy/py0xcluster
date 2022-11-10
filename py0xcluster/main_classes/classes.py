@@ -1,6 +1,12 @@
+from datetime import datetime, timedelta
 import pandas as pd
-from py0xcluster.utils import web3_utils, requests_utils
+from py0xcluster.utils import web3_utils, requests_utils, query_utils
 
+### Helpers to store elsewhere
+def df_cols_to_numeric(dataframe: pd.DataFrame, numeric_cols: list = None) -> pd.DataFrame:
+    for col in numeric_cols:
+        dataframe[numeric_cols] = dataframe[numeric_cols].astype(float)
+    return dataframe
 
 
 class Entity():
@@ -22,37 +28,62 @@ class Pools():
         self.dex_name = dex_name
         self.subgraph_url = subgraph_url
 
-    def get_pools_by_liquidity(self, min_amount: int = 1000, amount_curr: str = 'usd') -> pd.DataFrame:
+    def get_pools_by_liquidity(self, min_volume: int = 100000, min_txns: int = 200, start_date: tuple = None) -> pd.DataFrame:
         # initialization for pagination of query results
-        baseobjects = 'pairs'
+        if not start_date:
+            start_date = datetime.now() - timedelta(1)
+        
+        start_date = query_utils.timestamp_tuple_to_unix(start_date)
+        
+        baseobjects = 'pairDayDatas'
 
-        if amount_curr.lower() == 'eth':
-            query = '''
-                query($max_rows: Int $skip: Int orderBy$min_reserveETH: Int)
+        query = '''
+            query($max_rows: Int $skip: Int $dailyVolumeUSD_gt:Int, $dailyTxns_gt:Int, $start_date:Int)
+            {
+                pairDayDatas(
+                    first: $max_rows
+                    skip: $skip
+                    orderBy: dailyVolumeUSD 
+                    orderDirection:desc 
+                    where: {
+                        dailyVolumeUSD_gt: $dailyVolumeUSD_gt 
+                        dailyTxns_gt: $dailyTxns_gt 
+                        date_gte: $start_date
+                        }
+                    ) 
                 {
-                    pairs(first: $max_rows skip: $skip orderBy: reserveETH orderDirection:desc where: {
-                    reserveETH_gt: $min_reserveETH
-                }) {
-                    id
-                    token0 {
-                    symbol
-                    id
-                    }
-                    token1 {
-                    symbol
-                    id
-                    }
-                    reserveETH
-                    reserveUSD
-                    }
+                id
+                pairAddress
+                dailyTxns
+                date
+                token0 {
+                id
+                symbol
+                totalLiquidity
+                txCount
                 }
-                '''
-            variables = {
-                'min_reserveETH' : min_amount,
+                token1 {
+                id
+                symbol
+                totalLiquidity
+                txCount
                 }
-    
-            full_df = requests_utils.df_from_queries(self.subgraph_url, query, variables, baseobjects)
+                    dailyVolumeUSD
+                }
+            }
+            '''
 
+        variables = {
+            'dailyVolumeUSD_gt' : min_volume,
+            'dailyTxns_gt' : min_txns,
+            "start_date": start_date
+            }
+
+        full_df = requests_utils.df_from_queries(self.subgraph_url, query, variables, baseobjects)
+        numeric_cols = ['dailyTxns', 'dailyVolumeUSD', 'token0.totalLiquidity', 'token0.txCount', 'token1.totalLiquidity','token1.txCount']
+        full_df['date'] = pd.to_datetime(full_df['date'], unit='s')
+        full_df = df_cols_to_numeric(full_df, numeric_cols)
+        
         return full_df
 
 class Trades():

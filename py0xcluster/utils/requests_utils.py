@@ -25,14 +25,16 @@ def df_from_queries(subgraph_url, queryTemplate, variables, baseobjects):
     variables['skip'] = 0
 
     resp = run_query(subgraph_url, queryTemplate, variables)
-    resp_bout = pd.json_normalize(resp['data'][baseobjects],  max_level=2)
-    # print(resp_bout)'swaps'
-    while resp_bout.shape[0] > 0:
+    if 'errors' in resp.keys():
+        print(resp['errors'])
+    resp_df = pd.json_normalize(resp['data'][baseobjects],  max_level=2)
+    # print(resp_df)'swaps'
+    while resp_df.shape[0] > 0:
         resp = run_query(subgraph_url, queryTemplate, variables)
-        resp_bout = pd.json_normalize(resp['data'][baseobjects],  max_level=2)
+        resp_df = pd.json_normalize(resp['data'][baseobjects],  max_level=2)
         
-        # print(resp_bout.head(5))
+        # print(resp_df.head(5))
 
-        full_df = pd.concat([full_df, resp_bout], axis=0)
+        full_df = pd.concat([full_df, resp_df], axis=0)
         variables['skip'] += variables['max_rows']
     return full_df
