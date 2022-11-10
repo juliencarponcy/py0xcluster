@@ -1,5 +1,8 @@
 from datetime import datetime, timedelta
+
 import pandas as pd
+import numpy as np
+
 from py0xcluster.utils import web3_utils, requests_utils, query_utils
 
 ### Helpers to store elsewhere
@@ -28,10 +31,19 @@ class Pools():
         self.dex_name = dex_name
         self.subgraph_url = subgraph_url
 
-    def get_pools_by_liquidity(self, min_volume: int = 100000, min_txns: int = 200, start_date: tuple = None) -> pd.DataFrame:
+    def get_pools(
+            self, 
+            min_daily_volume: int = 100000, 
+            min_daily_txns: int = 200,
+            min_txns_per_token: int = 50000, 
+            start_date: tuple = None, 
+            end_date: tuple = None
+            ) -> pd.DataFrame:
         # initialization for pagination of query results
         if not start_date:
             start_date = datetime.now() - timedelta(1)
+        if not end_date:
+            end_date = datetime.now()
         
         start_date = query_utils.timestamp_tuple_to_unix(start_date)
         
@@ -57,34 +69,62 @@ class Pools():
                 dailyTxns
                 date
                 token0 {
-                id
-                symbol
-                totalLiquidity
-                txCount
+                    id
+                    symbol
+                    totalLiquidity
+                    txCount
                 }
                 token1 {
-                id
-                symbol
-                totalLiquidity
-                txCount
+                    id
+                    symbol
+                    totalLiquidity
+                    txCount
                 }
-                    dailyVolumeUSD
+                dailyVolumeUSD
+                reserveUSD
                 }
             }
             '''
 
         variables = {
-            'dailyVolumeUSD_gt' : min_volume,
-            'dailyTxns_gt' : min_txns,
+            'dailyVolumeUSD_gt' : min_daily_volume,
+            'dailyTxns_gt' : min_daily_txns,
             "start_date": start_date
             }
 
         full_df = requests_utils.df_from_queries(self.subgraph_url, query, variables, baseobjects)
-        numeric_cols = ['dailyTxns', 'dailyVolumeUSD', 'token0.totalLiquidity', 'token0.txCount', 'token1.totalLiquidity','token1.txCount']
-        full_df['date'] = pd.to_datetime(full_df['date'], unit='s')
-        full_df = df_cols_to_numeric(full_df, numeric_cols)
         
-        return full_df
+        numeric_cols = [
+            'dailyTxns', 
+            'reserveUSD', 
+            'dailyVolumeUSD', 
+            'token0.totalLiquidity', 
+            'token0.txCount', 
+            'token1.totalLiquidity',
+            'token1.txCount']
+        
+        # Formatting
+        full_df = df_cols_to_numeric(full_df, numeric_cols)
+        full_df['date'] = pd.to_datetime(full_df['date'], unit='s')
+        
+        
+        pools_summary = full_df.groupby('pairAddress').agg(
+            {'dailyTxns': np.mean, 
+            'dailyVolumeUSD':np.mean,
+            'reserveUSD' : np.mean,
+            'token0.totalLiquidity': np.mean,
+            'token1.totalLiquidity': np.mean,
+            'token0.txCount' : np.mean,
+            'token1.txCount' : np.mean
+            })
+
+        pool_id_cols = ['pairAddress','token0.symbol','token1.symbol','token0.id','token1.id']
+        pools_id_df = full_df[pool_id_cols].drop_duplicates('pairAddress')
+
+        pools_summary = pools_summary.merge(pools_id_df, how='left', on='pairAddress').sort_values('reserveUSD', ascending=False)  
+        # Discarding tokens with low total txns
+        pools_summary = pools_summary[(pools_summary['token0.txCount'] > min_txns_per_token) & (pools_summary['token1.txCount'] > min_txns_per_token)]
+        return pools_summary, full_df
 
 class Trades():
     def __init__(self, symbol):
