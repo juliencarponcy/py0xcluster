@@ -28,14 +28,22 @@ def df_from_queries(subgraph_url, queryTemplate, variables, baseobjects, verbose
     if 'errors' in resp.keys():
         print(resp['errors'])
         raise Exception('Query error, see response above')
+    
+
     resp_df = pd.json_normalize(resp['data'][baseobjects],  max_level=2)
     # print(resp_df)'swaps'
     while resp_df.shape[0] > 0:
         resp = run_query(subgraph_url, queryTemplate, variables, verbose)
         if verbose:
             print('skip varriable:', variables['skip'] + variables['max_rows'])
-        resp_df = pd.json_normalize(resp['data'][baseobjects],  max_level=2)
-        full_df = pd.concat([full_df, resp_df], axis=0)
-        variables['skip'] += variables['max_rows']
+        try:
+            resp_df = pd.json_normalize(resp['data'][baseobjects],  max_level=2)
+            full_df = pd.concat([full_df, resp_df], axis=0)
+            variables['skip'] += variables['max_rows']
+        except:
+            print('request aborted')
+            print(resp)
+            break
+
     
     return full_df
