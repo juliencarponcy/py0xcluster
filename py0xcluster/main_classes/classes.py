@@ -23,10 +23,39 @@ def format_dates(start_date: tuple = None, end_date: tuple = None):
     end_date = query_utils.timestamp_tuple_to_unix(end_date)
     return start_date, end_date
 
-def batch(iterable, n=1):
+def batch(iterable, n:int=1):
     l = len(iterable)
     for ndx in range(0, l, n):
         yield iterable[ndx:min(ndx + n, l)]
+
+def days_interval_tuples(
+        start_date:tuple, 
+        end_date:tuple, 
+        days_batch_size:int):
+    '''
+    Construct a generator of date limits over an interval
+    based on a batch size in days.
+    Return a generator which outputs a list of tuples of two datetime
+    (start and end of the batch)
+
+    Example: 
+
+    days_batch_lim = [dates_lim for dates_lim in days_interval(start_date, end_date, days_batch_size)]
+
+    >> [(datetime.datetime(2022, 6, 10, 0, 0), datetime.datetime(2022, 6, 13, 0, 0)),
+        (datetime.datetime(2022, 6, 13, 0, 0), datetime.datetime(2022, 6, 16, 0, 0)),
+        (datetime.datetime(2022, 6, 16, 0, 0), datetime.datetime(2022, 6, 19, 0, 0)),
+        (datetime.datetime(2022, 6, 19, 0, 0), datetime.datetime(2022, 6, 22, 0, 0)),
+        (datetime.datetime(2022, 6, 22, 0, 0), datetime.datetime(2022, 6, 25, 0, 0)),
+        (datetime.datetime(2022, 6, 25, 0, 0), datetime.datetime(2022, 6, 28, 0, 0)),
+        (datetime.datetime(2022, 6, 28, 0, 0), datetime.datetime(2022, 6, 30, 0, 0))]
+    '''
+    start = datetime(*start_date)
+    end = datetime(*end_date)
+    curr = start
+    while curr < end:
+        yield (curr, min(end, curr + timedelta(days_batch_size)))
+        curr += timedelta(days_batch_size)
 
 class Entity():
     chain_ID: str
@@ -57,12 +86,13 @@ class Pools():
             min_daily_txns: int = 200,
             min_txns_per_token: int = 50000, 
             start_date: tuple = None, 
-            end_date: tuple = None
+            end_date: tuple = None,
+            days_batch_size: int = 15,
+            min_days_in_ranking: int = None,
+            verbose: bool = True
             ) -> pd.DataFrame:
 
-        start_date, end_date = format_dates(start_date, end_date)
-
-        baseobjects = 'pairDayDatas'
+        base_entities = 'pairDayDatas'
 
         query = '''
             query($max_rows: Int $skip: Int $dailyVolumeUSD_gt:Int, $dailyTxns_gt:Int, $start_date:Int, $end_date:Int)
@@ -101,38 +131,59 @@ class Pools():
                 }
             }
             '''
+        # Generate list of 2 items tuple, start and end date of the date batch
+        days_batch_lim = [dates_lim for dates_lim in days_interval_tuples(start_date, end_date, days_batch_size)]
+        
+        full_df = pd.DataFrame()
+        for d_batch_nb, days_batch in enumerate(days_batch_lim):
+            start_batch = query_utils.timestamp_tuple_to_unix(days_batch[0])
+            end_batch = query_utils.timestamp_tuple_to_unix(days_batch[1])
 
-        variables = {
-            'dailyVolumeUSD_gt' : min_daily_volume,
-            'dailyTxns_gt' : min_daily_txns,
-            'start_date': start_date,
-            'end_date' : end_date
-            }
+            if verbose:
+                print(f'Queriying from {days_batch[0]} to {days_batch[1]}')
 
-        full_df = requests_utils.df_from_queries(self.subgraph_url, query, variables, baseobjects)
+            variables = {
+                'dailyVolumeUSD_gt' : min_daily_volume,
+                'dailyTxns_gt' : min_daily_txns,
+                'start_date': start_batch,
+                'end_date' : end_batch
+                }
+
+            batch_df = requests_utils.df_from_queries(self.subgraph_url, query, variables, base_entities)
+            
+            numeric_cols = [
+                'dailyTxns', 
+                'reserveUSD', 
+                'dailyVolumeUSD', 
+                'token0.totalLiquidity', 
+                'token0.txCount', 
+                'token1.totalLiquidity',
+                'token1.txCount']
+            
+            # Formatting
+            batch_df = df_cols_to_numeric(batch_df, numeric_cols)
+            batch_df['date'] = pd.to_datetime(batch_df['date'], unit='s')
+            # Aggregation
+            full_df = pd.concat([full_df, batch_df])
         
-        numeric_cols = [
-            'dailyTxns', 
-            'reserveUSD', 
-            'dailyVolumeUSD', 
-            'token0.totalLiquidity', 
-            'token0.txCount', 
-            'token1.totalLiquidity',
-            'token1.txCount']
+        full_df.reset_index(drop=True, inplace=True)
         
-        # Formatting
-        full_df = df_cols_to_numeric(full_df, numeric_cols)
-        full_df['date'] = pd.to_datetime(full_df['date'], unit='s')
-        
-        
+        # eliminate one-timer pools (or < X-timer pools):
+        # pools that appears in the stats just on one or a few days
+        if min_days_in_ranking:
+            count_days_in_ranking = full_df.groupby('pairAddress')['id'].count().sort_values()
+            pairs_under_min_days = count_days_in_ranking.index[count_days_in_ranking <= min_days_in_ranking].to_list()
+            full_df = full_df[~full_df.pairAddress.isin(pairs_under_min_days)]
+            print(f'{len(pairs_under_min_days)} pairs dropped over {count_days_in_ranking.shape[0]}')
+
         pools_summary = full_df.groupby('pairAddress').agg(
-            {'dailyTxns': np.mean, 
-            'dailyVolumeUSD':np.mean,
-            'reserveUSD' : np.mean,
-            'token0.totalLiquidity': np.mean,
-            'token1.totalLiquidity': np.mean,
-            'token0.txCount' : np.mean,
-            'token1.txCount' : np.mean
+            {'dailyTxns': np.median, 
+            'dailyVolumeUSD':np.median,
+            'reserveUSD' : np.median,
+            'token0.totalLiquidity': np.median,
+            'token1.totalLiquidity': np.median,
+            'token0.txCount' : min,
+            'token1.txCount' : min
             })
 
         pool_id_cols = ['pairAddress','token0.symbol','token1.symbol','token0.id','token1.id']
@@ -171,7 +222,7 @@ class TradesDEX(Trades):
             end_date: tuple = None
             ) -> pd.DataFrame:
 
-        baseobjects = ['mints', 'burns', 'swaps']
+        base_entities = ['mints', 'burns', 'swaps']
 
         query = '''
         query($allPairs: [String!], $timestamp_start:BigInt $timestamp_end:BigInt) {
@@ -231,7 +282,7 @@ class TradesDEX(Trades):
             'end_date' : end_date
             }
 
-        full_df = requests_utils.df_from_queries(self.subgraph_url, query, variables, baseobjects)
+        full_df = requests_utils.df_from_queries(self.subgraph_url, query, variables, base_entities)
         
         numeric_cols = [
             'dailyTxns', 
@@ -285,12 +336,12 @@ class TradesDEX(Trades):
 
         # TODO implement days_batches
         # TODO adapt day batches to nb of txns by pair
-        start_date, end_date = format_dates(start_date, end_date)
+        
 
         # if dex == 'uni2':
         subgraph_url = 'https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2'
 
-        baseobjects = 'swaps'
+        base_entities = 'swaps'
 
         # Construct variable query
         query = """
@@ -321,7 +372,6 @@ class TradesDEX(Trades):
             amount1In
             amount0Out
             amount1Out
-            logIndex         
             amountUSD
             pair {
                 token0 {
@@ -336,23 +386,13 @@ class TradesDEX(Trades):
             }
         }
         """
-
+        # Create empty dataframe storing all raw swaps data
         full_df = pd.DataFrame()
 
-        for pairs_batch in batch(pair_addresses, pairs_batch_size):
+        # Generate list of 2 items tuple, start and end date of the date batch
+        days_batch_lim = [dates_lim for dates_lim in days_interval_tuples(start_date, end_date, days_batch_size)]
 
-            variables = {
-                'pair_addresses' : pairs_batch,
-                'min_amoutUSD' : min_amoutUSD,
-                'start_date': start_date,
-                'end_date' : end_date
-                }
-
-            batch_df = requests_utils.df_from_queries(subgraph_url, query, variables, baseobjects)
-            full_df = pd.concat([full_df, batch_df])
-            if verbose:
-                print('swaps collected so far:', full_df.shape[0])
-        
+        # Columns to be casted into floats
         numeric_cols = [
             'amount0In',
             'amount1In',
@@ -360,10 +400,40 @@ class TradesDEX(Trades):
             'amount1Out',
             'amountUSD'
             ]
+        # TODO: instead of doing dates AND pairs batch, it would be much more efficient
+        # to adapt batch size in function of the number of txns for each pair.
+        # some pairs have huge amount of big trades whereas some other pairs have
+        # very little activity on the same period. 
+        # more easily, maybe sorting the pools by something else than txns nb would help
+        # not cluttering the first batch of pairs
         
-        # Formatting
-        full_df = df_cols_to_numeric(full_df, numeric_cols)
-        full_df['timestamp'] = pd.to_datetime(full_df['timestamp'], unit='s')
+        for d_batch_nb, days_batch in enumerate(days_batch_lim):
+            start_batch = query_utils.timestamp_tuple_to_unix(days_batch[0])
+            end_batch = query_utils.timestamp_tuple_to_unix(days_batch[1])
+            if verbose:
+                print(f'from {days_batch[0]} to {days_batch[1]}')
+            for p_batch_nb, pairs_batch in enumerate(batch(pair_addresses, pairs_batch_size)):
+
+                variables = {
+                    'pair_addresses' : pairs_batch,
+                    'min_amoutUSD' : min_amoutUSD,
+                    'start_date': start_batch,
+                    'end_date' : end_batch
+                    }
+
+                batch_df = requests_utils.df_from_queries(subgraph_url, query, variables, base_entities)
+                
+                # if no error during query, aggregate:
+                if batch_df.shape[0] > 0:
+                    # Formatting
+                    batch_df = df_cols_to_numeric(batch_df, numeric_cols)
+                    batch_df['timestamp'] = pd.to_datetime(batch_df['timestamp'], unit='s')
+                    # Aggregation
+                    full_df = pd.concat([full_df, batch_df])
+                
+                
+                if verbose:
+                    print('swaps collected so far:', full_df.shape[0])
 
         print(f'outputs: {full_df.shape[0]} trades')
         

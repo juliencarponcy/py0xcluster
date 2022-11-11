@@ -2,7 +2,7 @@ import requests
 import pandas as pd
 
 # Pagination parameter
-NB_BY_QUERY = 500
+NB_BY_QUERY = 1000
 
 def run_query(subgraph_url, query, variables, verbose): # A simple function to use requests.post to make the API call. Note the json= section.
     
@@ -18,7 +18,7 @@ def run_query(subgraph_url, query, variables, verbose): # A simple function to u
     else:
         raise Exception("Query failed to run by returning code of {}. {}. {}".format(request.status_code, request.json()['errors'], query))    
 
-def df_from_queries(subgraph_url, queryTemplate, variables, baseobjects, verbose=True):
+def df_from_queries(subgraph_url, queryTemplate, variables, baseobjects, verbose=False):
     full_df = pd.DataFrame()
     
     variables['max_rows'] = NB_BY_QUERY
@@ -27,23 +27,25 @@ def df_from_queries(subgraph_url, queryTemplate, variables, baseobjects, verbose
     resp = run_query(subgraph_url, queryTemplate, variables, verbose)
     if 'errors' in resp.keys():
         print(resp['errors'])
-        raise Exception('Query error, see response above')
+        # disable exception to allow other results to be aggregated
+        # despite an error 
+        # raise Exception('Query error, see response above')
     
+    else:
+        resp_df = pd.json_normalize(resp['data'][baseobjects],  max_level=2)
+        # print(resp_df)'swaps'
+        while resp_df.shape[0] > 0:
+            resp = run_query(subgraph_url, queryTemplate, variables, verbose)
+            if verbose:
+                print('skip varriable:', variables['skip'] + variables['max_rows'])
+            try:
+                resp_df = pd.json_normalize(resp['data'][baseobjects],  max_level=2)
+                full_df = pd.concat([full_df, resp_df], axis=0)
+                variables['skip'] += variables['max_rows']
+            except:
+                print('request aborted')
+                print(resp)
+                break
 
-    resp_df = pd.json_normalize(resp['data'][baseobjects],  max_level=2)
-    # print(resp_df)'swaps'
-    while resp_df.shape[0] > 0:
-        resp = run_query(subgraph_url, queryTemplate, variables, verbose)
-        if verbose:
-            print('skip varriable:', variables['skip'] + variables['max_rows'])
-        try:
-            resp_df = pd.json_normalize(resp['data'][baseobjects],  max_level=2)
-            full_df = pd.concat([full_df, resp_df], axis=0)
-            variables['skip'] += variables['max_rows']
-        except:
-            print('request aborted')
-            print(resp)
-            break
-
-    
+        
     return full_df
