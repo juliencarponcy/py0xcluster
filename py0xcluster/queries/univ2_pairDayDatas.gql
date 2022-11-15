@@ -1,0 +1,35 @@
+query($max_rows: Int $skip: Int $dailyVolumeUSD_gt:Int, $dailyTxns_gt:Int, $start_date:Int, $end_date:Int)
+{
+pairDayDatas(
+    first: $max_rows
+    skip: $skip
+    orderBy: dailyVolumeUSD 
+    orderDirection:desc 
+    where: {
+        dailyVolumeUSD_gt: $dailyVolumeUSD_gt 
+        dailyTxns_gt: $dailyTxns_gt 
+        date_gte: $start_date
+        date_lte: $end_date
+        }
+    ) 
+{
+id
+pairAddress
+dailyTxns
+date
+token0 {
+    id
+    symbol
+    totalLiquidity
+    txCount
+}
+token1 {
+    id
+    symbol
+    totalLiquidity
+    txCount
+}
+dailyVolumeUSD
+reserveUSD
+}
+}

@@ -1,0 +1,52 @@
+query(
+    first: $max_rows 
+    $allPairs: [String!]
+    $timestamp_start:BigInt 
+    $timestamp_end:BigInt) 
+    {
+    mints(            
+        first: $max_rows
+        skip: $skip
+        orderBy: timestamp
+        orderDirection: desc
+        where: {
+            pair_in: $pair_addresses
+            timestamp_gte: $timestamp_start
+            timestamp_lt: $timestamp_end
+            }
+        )
+        {
+        transaction {
+            id
+            timestamp
+        }
+        to
+        liquidity
+        amount0
+        amount1
+        amountUSD
+        }
+
+    burns( 
+        first: $max_rows
+        skip: $skip
+        orderBy: timestamp
+        orderDirection: desc
+        where: {
+            pair_in: $pair_addresses
+            timestamp_gte: $timestamp_start
+            timestamp_lt: $timestamp_end
+            }
+        )
+        {
+        transaction {
+            id
+            timestamp
+        }
+        to
+        liquidity
+        amount0
+        amount1
+        amountUSD
+        }
+    }

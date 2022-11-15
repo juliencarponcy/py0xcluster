@@ -1,4 +1,8 @@
 from datetime import datetime, timedelta
+import os
+from gql import gql, Client
+from gql.transport.aiohttp import AIOHTTPTransport
+from gql.transport.exceptions import TransportQueryError
 
 import pandas as pd
 import numpy as np
@@ -79,6 +83,12 @@ class Pools():
         self.pair_addresses = None
         self.pair_symbols = None
         self.pools_summary = None
+        self.QUERY_PATH = r'C:\Users\phar0732\Documents\GitHub\py0xcluster\py0xcluster\queries'
+
+    def _load_query(self, query_file):
+        query_path = os.path.join(self.QUERY_PATH, query_file)
+        with open(query_path) as f:
+            return f.read()
 
     def get_pools(
             self, 
@@ -91,46 +101,12 @@ class Pools():
             min_days_in_ranking: int = None,
             verbose: bool = True
             ) -> pd.DataFrame:
-
+            
+        
         base_entities = 'pairDayDatas'
-
-        query = '''
-            query($max_rows: Int $skip: Int $dailyVolumeUSD_gt:Int, $dailyTxns_gt:Int, $start_date:Int, $end_date:Int)
-            {
-                pairDayDatas(
-                    first: $max_rows
-                    skip: $skip
-                    orderBy: dailyVolumeUSD 
-                    orderDirection:desc 
-                    where: {
-                        dailyVolumeUSD_gt: $dailyVolumeUSD_gt 
-                        dailyTxns_gt: $dailyTxns_gt 
-                        date_gte: $start_date
-                        date_lte: $end_date
-                        }
-                    ) 
-                {
-                id
-                pairAddress
-                dailyTxns
-                date
-                token0 {
-                    id
-                    symbol
-                    totalLiquidity
-                    txCount
-                }
-                token1 {
-                    id
-                    symbol
-                    totalLiquidity
-                    txCount
-                }
-                dailyVolumeUSD
-                reserveUSD
-                }
-            }
-            '''
+        if self.dex_name == 'univ2':
+            query = self._load_query('univ2_pairDayDatas.gql')
+            print(type(query),query)
         # Generate list of 2 items tuple, start and end date of the date batch
         days_batch_lim = [dates_lim for dates_lim in days_interval_tuples(start_date, end_date, days_batch_size)]
         
@@ -200,11 +176,46 @@ class Pools():
         return pools_summary, full_df
 
 
+
+class ProductProviderError(Exception):
+    pass
+
+class ProductProvider:
+    def __init__(self, conf):
+        headers = {"Authorization": f"Bearer {conf['DEST_TOKEN']}"}
+        transport = AIOHTTPTransport(url=conf['DEST_URL'], headers=headers)
+        self._client = Client(transport=transport)
+        self._sku_query = self._load_query('products_query.graphql')
+
+    def get_products(self, page_size=100):
+        skip = 0
+        while True:
+          vars = {"first": page_size, "skip": skip}
+          products = self._execute(self._sku_query, vars)
+          if not products['products']:
+              return
+
+          skip += page_size
+          for product in products['products']:
+              yield product
+
+    def _load_query(self, path):
+        with open(path) as f:
+            return gql(f.read())
+
+    def _execute(self, query, variable_values):
+        try:
+            return self._client.execute(query, variable_values=variable_values)
+        except TransportQueryError as err:
+            raise ProductProviderError(err.errors[0]['message'])
+
+
 class Trades():
     def __init__(self, symbols):
         self.symbol = symbols
 
         self.data = pd.DataFrame()
+
 
 class TradesDEX(Trades):
     def __init__(self, symbol:str = None):

@@ -1,0 +1,40 @@
+query($max_rows: Int $skip: Int $pair_addresses: [String!] $min_amoutUSD: Int $start_date: BigInt $end_date: BigInt)
+{
+swaps(
+    first: $max_rows
+    skip: $skip
+    orderBy: timestamp
+    orderDirection: desc
+    where: {
+        amountUSD_gte: $min_amoutUSD
+        pair_in: $pair_addresses
+        timestamp_gte: $start_date
+        timestamp_lte: $end_date
+        }
+    ) 
+    {
+    
+    id
+    transaction {
+        id
+        }
+    timestamp
+    sender
+    to
+    amount0In
+    amount1In
+    amount0Out
+    amount1Out
+    amountUSD
+    pair {
+        token0 {
+            symbol
+            id
+            }
+        token1 {
+            symbol
+            id
+            }
+        }
+    }
+}
