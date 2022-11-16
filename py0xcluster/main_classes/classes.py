@@ -85,6 +85,7 @@ class Pools():
         self.pools_summary = None
         self.QUERY_PATH = r'C:\Users\phar0732\Documents\GitHub\py0xcluster\py0xcluster\queries'
 
+    #TODO reactivate return as gql request with gql(f.read())
     def _load_query(self, query_file):
         query_path = os.path.join(self.QUERY_PATH, query_file)
         with open(query_path) as f:
@@ -103,10 +104,18 @@ class Pools():
             ) -> pd.DataFrame:
             
         
-        base_entities = 'pairDayDatas'
+        
         if self.dex_name == 'univ2':
+            base_entities = 'pairDayDatas'
             query = self._load_query('univ2_pairDayDatas.gql')
-            print(type(query),query)
+            numeric_cols = [
+                'dailyTxns', 
+                'reserveUSD', 
+                'dailyVolumeUSD', 
+                'token0.totalLiquidity', 
+                'token0.txCount', 
+                'token1.totalLiquidity',
+                'token1.txCount']
         # Generate list of 2 items tuple, start and end date of the date batch
         days_batch_lim = [dates_lim for dates_lim in days_interval_tuples(start_date, end_date, days_batch_size)]
         
@@ -126,15 +135,6 @@ class Pools():
                 }
 
             batch_df = requests_utils.df_from_queries(self.subgraph_url, query, variables, base_entities)
-            
-            numeric_cols = [
-                'dailyTxns', 
-                'reserveUSD', 
-                'dailyVolumeUSD', 
-                'token0.totalLiquidity', 
-                'token0.txCount', 
-                'token1.totalLiquidity',
-                'token1.txCount']
             
             # Formatting
             batch_df = df_cols_to_numeric(batch_df, numeric_cols)
@@ -177,37 +177,98 @@ class Pools():
 
 
 
-class ProductProviderError(Exception):
+class SwapProviderError(Exception):
     pass
 
-class ProductProvider:
+class SwapProvider():
     def __init__(self, conf):
-        headers = {"Authorization": f"Bearer {conf['DEST_TOKEN']}"}
-        transport = AIOHTTPTransport(url=conf['DEST_URL'], headers=headers)
+        headers = {"Authorization": f"Bearer {conf['token']}"}
+        transport = AIOHTTPTransport(url=conf['subgraph_url'], headers=headers)
         self._client = Client(transport=transport)
-        self._sku_query = self._load_query('products_query.graphql')
+        self.page_size = 1000
 
-    def get_products(self, page_size=100):
-        skip = 0
-        while True:
-          vars = {"first": page_size, "skip": skip}
-          products = self._execute(self._sku_query, vars)
-          if not products['products']:
-              return
-
-          skip += page_size
-          for product in products['products']:
-              yield product
-
-    def _load_query(self, path):
-        with open(path) as f:
+    def _load_query(self, queries_path, query_file):
+        with open(os.path.join(queries_path, query_file)) as f:
             return gql(f.read())
 
     def _execute(self, query, variable_values):
         try:
             return self._client.execute(query, variable_values=variable_values)
         except TransportQueryError as err:
-            raise ProductProviderError(err.errors[0]['message'])
+            raise SwapProvider(err.errors[0]['message'])
+
+    def _get_swaps_chunk(self, days_batch_lim, verbose):
+    
+        for d_batch_nb, days_batch in enumerate(days_batch_lim):
+            start_batch = query_utils.timestamp_tuple_to_unix(days_batch[0])
+            end_batch = query_utils.timestamp_tuple_to_unix(days_batch[1])
+            if verbose:
+                print(f'from {days_batch[0]} to {days_batch[1]}')
+            for p_batch_nb, pairs_batch in enumerate(batch(pair_addresses, pairs_batch_size)):
+
+                variables = {
+                    'pair_addresses' : pairs_batch,
+                    'min_amoutUSD' : min_amoutUSD,
+                    'start_date': start_batch,
+                    'end_date' : end_batch
+                    }
+
+                batch_df = requests_utils.df_from_queries(subgraph_url, query, variables, base_entities)
+                
+                # if no error during query, aggregate:
+                if batch_df.shape[0] > 0:
+                    # Formatting
+                    batch_df = df_cols_to_numeric(batch_df, numeric_cols)
+                    batch_df['timestamp'] = pd.to_datetime(batch_df['timestamp'], unit='s')
+                    # Aggregation
+                    full_df = pd.concat([full_df, batch_df])
+                
+                
+                if verbose:
+                    print('swaps collected so far:', full_df.shape[0])
+)
+
+    def _get_date_lims(start_date:tuple, end_date:tuple, days_batch_size:int)        # Generate list of 2 items tuple, start and end date of the date batch
+        '''
+        take two tuples as a date and a int step (days_batch_size) in days,
+        return an array of start and stop dates
+        '''
+        days_batch_lim = [dates_lim for dates_lim in days_interval_tuples(start_date, end_date, days_batch_size)]
+        return days_batch_lim
+
+class Uni2_SwapProvider(SwapProvider):
+    def __init__(self, conf):
+        super.__init__(self, conf)
+        self._swap_query = self._load_query(conf['QUERIES_PATH'],'univ2_swaps.gql')
+
+    def get_swaps(
+            self,
+            pair_addresses: list = None, 
+            min_amoutUSD: int = 2000, 
+            start_date: tuple = None, 
+            end_date: tuple = None,
+            pairs_batch_size = 1,
+            days_batch_size = 10,
+            verbose = True
+            ) -> pd.DataFrame:
+
+        if isinstance(pair_addresses, str):
+            pair_addresses = [pair_addresses]
+
+
+
+        skip = 0
+        while True:
+          vars = {"first": self.page_size, "skip": skip}
+          resp = self._execute(self._swap_query, vars)
+          if not resp['swaps']:
+              return
+
+          skip += self.page_size
+          for swap in resp['swaps']:
+              yield swap
+
+
 
 
 class Trades():
@@ -320,7 +381,7 @@ class TradesDEX(Trades):
     def get_burns(self, dex, variables):
         ...
 
-    def preprocess_raw_swaps(self):
+    def preprocess_swaps(self):
 
         processed_swaps = self.data
         processed_swaps['buy'] = not processed_swaps['amout0In'].astype(bool)
@@ -329,6 +390,7 @@ class TradesDEX(Trades):
             axis=1,
             inplace=True)
         
+        return processed_swaps
         
 
     def get_swaps(
