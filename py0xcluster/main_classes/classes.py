@@ -186,6 +186,7 @@ class SwapProvider():
         transport = AIOHTTPTransport(url=conf['subgraph_url'], headers=headers)
         self._client = Client(transport=transport)
         self.page_size = 1000
+        self.conf = conf
 
     def _load_query(self, queries_path, query_file):
         with open(os.path.join(queries_path, query_file)) as f:
@@ -197,44 +198,72 @@ class SwapProvider():
         except TransportQueryError as err:
             raise SwapProvider(err.errors[0]['message'])
 
-    def _get_swaps_chunk(self, days_batch_lim, verbose):
-    
+    def get_swaps(
+            self,
+            pair_addresses: list = None, 
+            min_amoutUSD: int = 2000, 
+            start_date: tuple = None, 
+            end_date: tuple = None,
+            pairs_batch_size = 1,
+            days_batch_size = 10,
+            verbose = True
+            ) -> pd.DataFrame:
+
+        base_entities = 'swaps'
+        query = self._load_query(self.conf['QUERIES_PATH'],'univ2_swaps.gql')
+        
+        numeric_cols = [
+            'amount0In',
+            'amount1In',
+            'amount0Out',
+            'amount1Out',
+            'amountUSD'
+            ]
+        
+        days_batch_lim = self._get_date_lims(start_date, end_date, days_batch_size)
+        pairs_batch_enumerator = enumerate(batch(pair_addresses, pairs_batch_size))
+        
+
+        if isinstance(pair_addresses, str):
+            pair_addresses = [pair_addresses]
+
+        variables = {
+            'min_amoutUSD' : min_amoutUSD,
+            }
+        
+        var_generator = self._get_iter_vars(pairs_batch_enumerator, days_batch_lim, variables, verbose=True)
+
+        for vars in var_generator:
+            print(vars)
+            response = self._execute(query, vars)
+            print(response)
+
+
+    def _get_iter_vars(self, pairs_batch_enumerator, days_batch_lim, variables, verbose):
+        
+
         for d_batch_nb, days_batch in enumerate(days_batch_lim):
             start_batch = query_utils.timestamp_tuple_to_unix(days_batch[0])
             end_batch = query_utils.timestamp_tuple_to_unix(days_batch[1])
             if verbose:
                 print(f'from {days_batch[0]} to {days_batch[1]}')
-            for p_batch_nb, pairs_batch in enumerate(batch(pair_addresses, pairs_batch_size)):
+            for p_batch_nb, pairs_batch in pairs_batch_enumerator:
 
-                variables = {
-                    'pair_addresses' : pairs_batch,
-                    'min_amoutUSD' : min_amoutUSD,
-                    'start_date': start_batch,
-                    'end_date' : end_batch
-                    }
+                variables['pair_addresses'] = pairs_batch,
+                variables['start_date'] = start_batch,
+                variables['end_date'] = end_batch
+                    
+                yield variables
+               
 
-                batch_df = requests_utils.df_from_queries(subgraph_url, query, variables, base_entities)
-                
-                # if no error during query, aggregate:
-                if batch_df.shape[0] > 0:
-                    # Formatting
-                    batch_df = df_cols_to_numeric(batch_df, numeric_cols)
-                    batch_df['timestamp'] = pd.to_datetime(batch_df['timestamp'], unit='s')
-                    # Aggregation
-                    full_df = pd.concat([full_df, batch_df])
-                
-                
-                if verbose:
-                    print('swaps collected so far:', full_df.shape[0])
-)
-
-    def _get_date_lims(start_date:tuple, end_date:tuple, days_batch_size:int)        # Generate list of 2 items tuple, start and end date of the date batch
+    def _get_date_lims(self, start_date:tuple, end_date:tuple, days_batch_size:int):
         '''
         take two tuples as a date and a int step (days_batch_size) in days,
         return an array of start and stop dates
         '''
         days_batch_lim = [dates_lim for dates_lim in days_interval_tuples(start_date, end_date, days_batch_size)]
         return days_batch_lim
+
 
 class Uni2_SwapProvider(SwapProvider):
     def __init__(self, conf):
@@ -255,7 +284,7 @@ class Uni2_SwapProvider(SwapProvider):
         if isinstance(pair_addresses, str):
             pair_addresses = [pair_addresses]
 
-
+        
 
         skip = 0
         while True:

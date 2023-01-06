@@ -1,0 +1,63 @@
+query {
+        swaps(where: {
+            block: {timestamp_not_within: [5, 5]}
+            amountIn_gt: 100
+            amountOut_gt: 100
+            from_not: {code_not: "0x"}
+            to_not: {code_not: "0x"}
+        }) {
+            id
+            hash
+            logIndex
+            protocol
+            to
+            from
+            blockNumber
+            timestamp
+            tokenIn
+            amountIn
+            amountInUSD
+            tokenOut
+            amountOut
+            amountOutUSD
+            pool
+        }
+        mints(where: {
+            block: {timestamp_not_within: [5, 5]}
+            amount_gt: 100
+            from_not: {code_not: "0x"}
+            to_not: {code_not: "0x"}
+        }) {
+            id
+            hash
+            logIndex
+            protocol
+            to
+            from
+            blockNumber
+            timestamp
+            token
+            amount
+            amountUSD
+            pool
+        }
+        burns(where: {
+            block: {timestamp_not_within: [5, 5]}
+            amount_gt: 100
+            from_not: {code_not: "0x"}
+            to_not: {code_not: "0x"}
+        }) {
+            id
+            hash
+            logIndex
+            protocol
+            to
+            from
+            blockNumber
+            timestamp
+            token
+            amount
+            amountUSD
+            pool
+        }
+    }
