@@ -83,7 +83,7 @@ class Pools():
         self.pair_addresses = None
         self.pair_symbols = None
         self.pools_summary = None
-        self.QUERY_PATH = r'C:\Users\phar0732\Documents\GitHub\py0xcluster\py0xcluster\queries'
+        self.QUERY_PATH = r'/home/fujiju/Documents/GitHub/py0xcluster/py0xcluster/queries'
 
     #TODO reactivate return as gql request with gql(f.read())
     def _load_query(self, query_file):
@@ -226,9 +226,8 @@ class SwapProvider():
                 
                 if verbose:
                     print('swaps collected so far:', full_df.shape[0])
-)
 
-    def _get_date_lims(start_date:tuple, end_date:tuple, days_batch_size:int)        # Generate list of 2 items tuple, start and end date of the date batch
+    def _get_date_lims(start_date:tuple, end_date:tuple, days_batch_size:int):        # Generate list of 2 items tuple, start and end date of the date batch
         '''
         take two tuples as a date and a int step (days_batch_size) in days,
         return an array of start and stop dates

@@ -1,7 +1,7 @@
 from web3 import Web3
 from pandas import read_csv
 
-infura_API_path = r'C:\Users\phar0732\Documents\ID\infura\infura_api.csv'
+infura_API_path = r'/home/fujiju/Documents/ID/infura_api.csv'
 infura_token = str(read_csv(infura_API_path, header=None).values[0][0])
 
 infura_token
