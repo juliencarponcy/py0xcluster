@@ -1,8 +1,20 @@
 import requests
 import pandas as pd
+import gql
 
 # Pagination parameter
 NB_BY_QUERY = 1000
+
+def run_gql_query(subgraph_url, query, variables):
+    # Construct the GraphQL client using the `gql` package
+    client = gql.client(subgraph_url)
+
+    # Execute the query and store the result
+    result = client.execute(gql(query), variables=variables)
+
+    # Return the result
+    return result
+
 
 def run_query(subgraph_url, query, variables, verbose): # A simple function to use requests.post to make the API call. Note the json= section.
     

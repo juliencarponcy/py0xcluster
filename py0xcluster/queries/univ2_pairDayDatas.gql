@@ -1,7 +1,7 @@
-query($max_rows: Int $skip: Int $dailyVolumeUSD_gt:Int, $dailyTxns_gt:Int, $start_date:Int, $end_date:Int)
+query($first: Int $skip: Int $dailyVolumeUSD_gt:BigInt, $dailyTxns_gt:Int, $start_date:Int, $end_date:Int)
 {
 pairDayDatas(
-    first: $max_rows
+    first: $first
     skip: $skip
     orderBy: dailyVolumeUSD 
     orderDirection:desc 

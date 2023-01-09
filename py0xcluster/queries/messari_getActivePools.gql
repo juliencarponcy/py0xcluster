@@ -1,0 +1,31 @@
+query getActivePools($first: Int $skip: Int, $start_date:BigInt, $end_date:BigInt, $minVolumeUSD:BigDecimal) {
+  liquidityPoolDailySnapshots(
+    first: $first
+    skip: $skip
+    orderBy: dailyVolumeUSD
+    orderDirection: desc
+    where: {
+      dailyVolumeUSD_gte: $minVolumeUSD
+      timestamp_lte: $end_date
+      timestamp_gte: $start_date}
+  ) {
+    dailyVolumeUSD
+    pool {
+      
+      symbol
+      
+      totalValueLockedUSD
+      protocol {
+        name
+        network
+      }
+      name
+      id
+      inputTokens {
+        symbol
+        lastPriceUSD
+      }
+
+    }    
+  }
+}
