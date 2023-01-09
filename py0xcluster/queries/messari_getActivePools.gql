@@ -9,11 +9,13 @@ query getActivePools($first: Int $skip: Int, $start_date:BigInt, $end_date:BigIn
       timestamp_lte: $end_date
       timestamp_gte: $start_date}
   ) {
+    timestamp
     dailyVolumeUSD
+    
     pool {
       
       symbol
-      
+
       totalValueLockedUSD
       protocol {
         name

@@ -33,13 +33,31 @@ class PoolSelector:
 
         for col in df_input_tokens.columns:
             v = pd.json_normalize(df_input_tokens[col])
-            v.columns = [f'token{col}_{c}' for c in v.columns]
+            v.columns = [f'token{col}.{c}' for c in v.columns]
             df_list.append(v)
 
             # combine into one dataframe
-            df_normalized = pd.concat([df.iloc[:, 0:7]] + df_list, axis=1)
+            # TODO do not force index, implement specifcally for pool.inputTokens
+            df_normalized = pd.concat([df.iloc[:, 0:8]] + df_list, axis=1)
 
         return df_normalized
+
+    def _preprocess_pools_data(self, df_pools):
+        float_cols = [col for col in df_pools.columns if 'USD' in col]
+        str_cols = [col for col in df_pools.columns if ('USD' not in col) and ('timestamp' not in col)]
+
+        df_pools['timestamp'] = pd.to_datetime(df_pools['timestamp'], unit='s')
+
+        for col in float_cols:
+            df_pools[col] = df_pools[col].astype('float32')
+
+        for col in str_cols:
+            df_pools[col] = df_pools[col].astype('string')
+
+        return df_pools
+
+    def _remove_stable_pools(self, df_pools_data: pd.DataFrame):
+        ...
 
     def get_pools_data(self, verbose: bool = False):
 
@@ -81,6 +99,9 @@ class PoolSelector:
 
         # normalize data from liquidityPoolDailySnapshots
         df_pools_data = self._normalize_pools_data(full_results)
+        
+        # convert types
+        df_pools_data = self._preprocess_pools_data(df_pools_data)
         
         return df_pools_data
             
