@@ -27,39 +27,6 @@ def format_dates(start_date: tuple = None, end_date: tuple = None):
     end_date = query_utils.timestamp_tuple_to_unix(end_date)
     return start_date, end_date
 
-def batch(iterable, n:int=1):
-    l = len(iterable)
-    for ndx in range(0, l, n):
-        yield iterable[ndx:min(ndx + n, l)]
-
-def days_interval_tuples(
-        start_date:tuple, 
-        end_date:tuple, 
-        days_batch_size:int):
-    '''
-    Construct a generator of date limits over an interval
-    based on a batch size in days.
-    Return a generator which outputs a list of tuples of two datetime
-    (start and end of the batch)
-
-    Example: 
-
-    days_batch_lim = [dates_lim for dates_lim in days_interval(start_date, end_date, days_batch_size)]
-
-    >> [(datetime.datetime(2022, 6, 10, 0, 0), datetime.datetime(2022, 6, 13, 0, 0)),
-        (datetime.datetime(2022, 6, 13, 0, 0), datetime.datetime(2022, 6, 16, 0, 0)),
-        (datetime.datetime(2022, 6, 16, 0, 0), datetime.datetime(2022, 6, 19, 0, 0)),
-        (datetime.datetime(2022, 6, 19, 0, 0), datetime.datetime(2022, 6, 22, 0, 0)),
-        (datetime.datetime(2022, 6, 22, 0, 0), datetime.datetime(2022, 6, 25, 0, 0)),
-        (datetime.datetime(2022, 6, 25, 0, 0), datetime.datetime(2022, 6, 28, 0, 0)),
-        (datetime.datetime(2022, 6, 28, 0, 0), datetime.datetime(2022, 6, 30, 0, 0))]
-    '''
-    start = datetime(*start_date)
-    end = datetime(*end_date)
-    curr = start
-    while curr < end:
-        yield (curr, min(end, curr + timedelta(days_batch_size)))
-        curr += timedelta(days_batch_size)
 
 class Entity():
     chain_ID: str
@@ -83,12 +50,13 @@ class Pools():
         self.pair_addresses = None
         self.pair_symbols = None
         self.pools_summary = None
-        self.QUERY_PATH = r'/home/fujiju/Documents/GitHub/py0xcluster/py0xcluster/queries'
+
+        root_folder = os.path.abspath(os.path.join(__file__, '..', '..'))
+        self.query_folder = os.path.join(root_folder, 'queries')
 
     #TODO reactivate return as gql request with gql(f.read())
-    def _load_query(self, query_file):
-        query_path = os.path.join(self.QUERY_PATH, query_file)
-        with open(query_path) as f:
+    def _load_query(self, query_filename):
+        with open(os.path.join(self.query_folder, query_filename)) as f:
             return f.read()
 
     def get_pools(
@@ -186,7 +154,6 @@ class SwapProvider():
         transport = AIOHTTPTransport(url=conf['subgraph_url'], headers=headers)
         self._client = Client(transport=transport)
         self.page_size = 1000
-        self.conf = conf
 
     def _load_query(self, queries_path, query_file):
         with open(os.path.join(queries_path, query_file)) as f:
@@ -198,63 +165,21 @@ class SwapProvider():
         except TransportQueryError as err:
             raise SwapProvider(err.errors[0]['message'])
 
-    def get_swaps(
-            self,
-            pair_addresses: list = None, 
-            min_amoutUSD: int = 2000, 
-            start_date: tuple = None, 
-            end_date: tuple = None,
-            pairs_batch_size = 1,
-            days_batch_size = 10,
-            verbose = True
-            ) -> pd.DataFrame:
-
-        base_entities = 'swaps'
-        query = self._load_query(self.conf['QUERIES_PATH'],'univ2_swaps.gql')
-        
-        numeric_cols = [
-            'amount0In',
-            'amount1In',
-            'amount0Out',
-            'amount1Out',
-            'amountUSD'
-            ]
-        
-        days_batch_lim = self._get_date_lims(start_date, end_date, days_batch_size)
-        pairs_batch_enumerator = enumerate(batch(pair_addresses, pairs_batch_size))
-        
-
-        if isinstance(pair_addresses, str):
-            pair_addresses = [pair_addresses]
-
-        variables = {
-            'min_amoutUSD' : min_amoutUSD,
-            }
-        
-        var_generator = self._get_iter_vars(pairs_batch_enumerator, days_batch_lim, variables, verbose=True)
-
-        for vars in var_generator:
-            print(vars)
-            response = self._execute(query, vars)
-            print(response)
-
-
-    def _get_iter_vars(self, pairs_batch_enumerator, days_batch_lim, variables, verbose):
-        
-
+    def _get_swaps_chunk(self, days_batch_lim, verbose):
+    
         for d_batch_nb, days_batch in enumerate(days_batch_lim):
             start_batch = query_utils.timestamp_tuple_to_unix(days_batch[0])
             end_batch = query_utils.timestamp_tuple_to_unix(days_batch[1])
             if verbose:
                 print(f'from {days_batch[0]} to {days_batch[1]}')
-            for p_batch_nb, pairs_batch in pairs_batch_enumerator:
+            for p_batch_nb, pairs_batch in enumerate(batch(pair_addresses, pairs_batch_size)):
 
-                variables['pair_addresses'] = pairs_batch,
-                variables['start_date'] = start_batch,
-                variables['end_date'] = end_batch
-                    
-                yield variables
-               
+                variables = {
+                    'pair_addresses' : pairs_batch,
+                    'min_amoutUSD' : min_amoutUSD,
+                    'start_date': start_batch,
+                    'end_date' : end_batch
+                    }
 
                 batch_df = requests_utils.df_from_queries(subgraph_url, query, variables, base_entities)
                 
@@ -278,7 +203,6 @@ class SwapProvider():
         days_batch_lim = [dates_lim for dates_lim in days_interval_tuples(start_date, end_date, days_batch_size)]
         return days_batch_lim
 
-
 class Uni2_SwapProvider(SwapProvider):
     def __init__(self, conf):
         super.__init__(self, conf)
@@ -298,7 +222,7 @@ class Uni2_SwapProvider(SwapProvider):
         if isinstance(pair_addresses, str):
             pair_addresses = [pair_addresses]
 
-        
+
 
         skip = 0
         while True:

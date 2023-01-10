@@ -2,6 +2,7 @@ pip
 ipython
 pandas
 web3
+gql
 
 
 

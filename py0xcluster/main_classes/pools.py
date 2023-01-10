@@ -1,4 +1,3 @@
-from datetime import datetime
 import os 
 
 import pandas as pd
@@ -134,36 +133,3 @@ class PoolSelector:
             print(f'{df_pools_data.shape[0]} lquidity pools snapshots retrieved')
         return df_pools_data
             
-    def select_active_pairs(self, df):
-        # Filter the DataFrame to only include pairs that have at least
-        # `self.min_trades` trades and have been active for at least
-        # `self.min_days_active` days
-        df = df[df['trades'] >= self.min_trades]
-        df = df[df['daysActive'] >= self.min_days_active]
-        
-        # Sort the DataFrame by `daysActive` in descending order
-        df = df.sort_values('daysActive', ascending=False)
-        
-        return df
-        
-    def select_recent_pairs(self, df):
-        # Get the current timestamp
-        current_timestamp = datetime.now().timestamp()
-        
-        # Filter the DataFrame to only include pairs that have been inactive for
-        # less than `self.max_days_inactive` days
-        df = df[(current_timestamp - df['lastTrade']) / (3600 * 24) < self.max_days_inactive]
-        
-        return df
-        
-    def get_selected_pairs(self):
-        # Get the pair data
-        df = self.get_pair_data()
-        
-        # Select active pairs
-        df = self.select_active_pairs(df)
-        
-        # Select recently inactive pairs
-        df = self.select_recent_pairs(df)
-        
-        return df
