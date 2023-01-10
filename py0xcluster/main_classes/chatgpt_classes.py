@@ -49,15 +49,42 @@ class PoolSelector:
         df_pools['timestamp'] = pd.to_datetime(df_pools['timestamp'], unit='s')
 
         for col in float_cols:
-            df_pools[col] = df_pools[col].astype('float32')
+            df_pools[col] = df_pools[col].astype('float64')
 
         for col in str_cols:
             df_pools[col] = df_pools[col].astype('string')
 
         return df_pools
 
-    def _remove_stable_pools(self, df_pools_data: pd.DataFrame):
-        ...
+    def keep_only_stable_pools(self, df_pools_data: pd.DataFrame, verbose: bool = True):
+        is_stable_pool = df_pools_data['token0.lastPriceUSD'].between(0.99,1.01) & df_pools_data['token1.lastPriceUSD'].between(0.99,1.01)
+
+        if verbose: 
+            print(f'{~is_stable_pool.sum()} non-stable pools snapshots (over {df_pools_data.shape[0]}) have been removed')
+
+        df_pools_data = df_pools_data[is_stable_pool]
+
+        return df_pools_data
+    
+    def remove_stable_pools(self, df_pools_data: pd.DataFrame, verbose: bool = True):
+        is_stable_pool = df_pools_data['token0.lastPriceUSD'].between(0.99,1.01) & df_pools_data['token1.lastPriceUSD'].between(0.99,1.01)
+
+        if verbose: 
+            print(f'{is_stable_pool.sum()} stable pools snapshots (over {df_pools_data.shape[0]}) have been removed')
+
+        df_pools_data = df_pools_data[~is_stable_pool]
+
+        return df_pools_data
+
+    def remove_illiquid_pools(self, df_pools_data: pd.DataFrame, min_TVL:int, verbose: bool = True):
+        # remove snapshots where the liquidity is under min_TVL
+        snapshots_to_remove = df_pools_data['pool.totalValueLockedUSD'] < min_TVL
+        if verbose:
+            print(f'{snapshots_to_remove.sum()} illiquid pools snapshots (over {df_pools_data.shape[0]}) have been removed ')
+        
+        df_pools_data = df_pools_data[~snapshots_to_remove]
+        
+        return df_pools_data
 
     def get_pools_data(self, verbose: bool = False):
 
@@ -103,6 +130,8 @@ class PoolSelector:
         # convert types
         df_pools_data = self._preprocess_pools_data(df_pools_data)
         
+        if verbose:
+            print(f'{df_pools_data.shape[0]} lquidity pools snapshots retrieved')
         return df_pools_data
             
     def select_active_pairs(self, df):
