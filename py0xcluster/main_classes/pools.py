@@ -8,11 +8,11 @@ class PoolSelector:
     def __init__(
             self, 
             subgraph_url: str,
-            min_daily_volume_USD: int = 100000, 
+            min_daily_volume_USD: int = 100000,
+            min_days_active: int = None,
             start_date: tuple = None, 
             end_date: tuple = None,
-            days_batch_size: int = 15,
-            min_days_active: int = None
+            days_batch_size: int = 15
             ) -> pd.DataFrame:
         
             self.subgraph_url = subgraph_url
@@ -40,6 +40,20 @@ class PoolSelector:
             df_normalized = pd.concat([df.iloc[:, 0:8]] + df_list, axis=1)
 
         return df_normalized
+
+    # Aggregate the different snapshots to have single entries for each pools
+    def aggregate_snapshots(self, df_pools):
+        # create a dataframe aggregating all the (script) descriptive features of 
+        # the pools described in the gathered snapshots
+        pools_description = df_pools.drop_duplicates(subset='pool.name', keep='first')
+        pools_description = pools_description.select_dtypes(include='string').set_index('pool.symbol')
+
+        # Compute MEDIAN of numeric values (volume, TVL, pries)
+        # consider adding flexibility for aggregation method
+        pools_stats = df_pools.groupby('pool.name').agg('median', numeric_only=True).sort_values('dailyVolumeUSD', ascending=False)
+        pools_stats = pools_stats.merge(pools_description, on='pool.name') 
+        
+        return pools_stats
 
     def _preprocess_pools_data(self, df_pools):
         float_cols = [col for col in df_pools.columns if 'USD' in col]
@@ -128,7 +142,7 @@ class PoolSelector:
         
         # convert types
         df_pools_data = self._preprocess_pools_data(df_pools_data)
-        
+    
         if verbose:
             print(f'{df_pools_data.shape[0]} lquidity pools snapshots retrieved')
         return df_pools_data
