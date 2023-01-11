@@ -3,7 +3,7 @@ TODO Build tools to construct custom queries
 '''
 from datetime import datetime, timedelta
 import time 
-
+import json
 from gql import gql, Client
 from gql.transport.requests import RequestsHTTPTransport
 
@@ -69,17 +69,17 @@ class GraphQLClient:
         # Read the query from the .gql file
         with open(query_file, 'r') as f:
             query = gql(f.read())
-
+        
         # Execute the query and return the results
         return self._paginate_query(query, variables)
 
-    def _paginate_query(self, query, variables):
+    def _paginate_query(self, query, variables, verbose:bool = True):
         """Helper function to paginate a query and return all results"""
         # Set up the pagination variables
         first = 1000
         skip = 0
-        results = []
 
+        results = dict()
         # Keep running the query until no more results are returned
         while True:
             # Update the variables with the current pagination values
@@ -92,20 +92,38 @@ class GraphQLClient:
             # Extract the baseEntity type (a single entity by query
             # must be asked for it to work) to have the key of the
             # list of result
-            base_entity = list(result.keys())[0]
+            
+            # List the base entities queried
+            base_entities = list(result.keys())
 
-            # Extract the data from the response
-            data = result[base_entity]
+            data_lengths = []
+            for entity in base_entities:
+                
+                # Extract the data from the response
+                data = result[entity]
+                if verbose:
+                    print(f' entity: {entity}, skip: {skip}, data length: {len(data)}')
+                                
+                if skip == 0:
+                    results[entity] = data
+                
+                if len(data) > 0:
+                    # Add the results to the list
+                    print(results.keys(), len(results[entity]))
+                    results[entity].extend(data)
+
+                data_lengths.append(len(data))
+
+            print(data_lengths)
+            empty_data = [data_length == 0 for data_length in data_lengths]
 
             # Break the loop if there are no more results
-            if len(data) == 0:
+            if all(empty_data) or max(data_lengths) < first:
                 break
 
-            # Add the results to the list
-            results.extend(data)
 
             # Increase the skip value by the number of returned results
-            skip += len(data)
+            skip += first
 
         return results
 

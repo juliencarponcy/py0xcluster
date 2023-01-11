@@ -18,23 +18,23 @@ class PoolsData:
 
 class PoolSelector:
     def __init__(
-            self, 
-            subgraph_url: str,
-            min_daily_volume_USD: int = 100000,
-            min_TVL: int = None,
-            start_date: tuple = None, 
-            end_date: tuple = None,
-            days_batch_size: int = 15
-            ) -> pd.DataFrame:
-        
-            self.subgraph_url = subgraph_url
-            self.min_daily_volume_USD = min_daily_volume_USD
-            self.min_TVL = min_TVL
-            self.start_date = start_date
-            self.end_date = end_date
-            self.days_batch_size = days_batch_size
-            
+        self, 
+        subgraph_url: str,
+        min_daily_volume_USD: int = 100000,
+        min_TVL: int = None,
+        start_date: tuple = None, 
+        end_date: tuple = None,
+        days_batch_size: int = 15
+        ) -> pd.DataFrame:
     
+        self.subgraph_url = subgraph_url
+        self.min_daily_volume_USD = min_daily_volume_USD
+        self.min_TVL = min_TVL
+        self.start_date = start_date
+        self.end_date = end_date
+        self.days_batch_size = days_batch_size
+        
+
     def _normalize_pools_data(self, pools_data: list):
         # first level of normalization
         df = pd.json_normalize(pools_data, meta=['pool.inputTokens'])

@@ -1,0 +1,40 @@
+query getPoolEvents($first: Int $skip: Int, $pool_id: ID, $start_date:BigInt, $end_date:BigInt) {
+  swaps(
+    first: $first
+    skip: $skip
+    where: {pool_: {id: $pool_id}, timestamp_gte: $start_date, timestamp_lte: $end_date}
+  ){
+    amountInUSD
+    amountOutUSD
+    amountIn
+    amountOut
+    timestamp
+    blockNumber
+  }
+
+  withdraws(
+    first: $first
+    skip: $skip
+    where: {pool_: {id: $pool_id}, timestamp_gte: $start_date, timestamp_lte: $end_date}
+  ){
+    amountUSD
+    from
+    to
+    inputTokenAmounts
+    timestamp
+    blockNumber
+  }
+
+  deposits(
+    first: $first
+    skip: $skip
+    where: {pool_: {id: $pool_id}, timestamp_gte: $start_date, timestamp_lte: $end_date}
+  ){
+    amountUSD
+    from
+    to
+    inputTokenAmounts
+    timestamp
+    blockNumber
+  }
+}
