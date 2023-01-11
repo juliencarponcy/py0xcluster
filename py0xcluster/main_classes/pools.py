@@ -1,15 +1,27 @@
 import os 
+from dataclasses import dataclass
 
 import pandas as pd
 
 from py0xcluster.utils.query_utils import *
+
+@dataclass
+class PoolsData:
+    pools_df: pd.DataFrame
+    subgraph_url: str
+    min_daily_volume_USD: int
+    min_TVL: int
+    start_date: tuple
+    end_date: tuple
+    days_batch_size: int
+    
 
 class PoolSelector:
     def __init__(
             self, 
             subgraph_url: str,
             min_daily_volume_USD: int = 100000,
-            min_days_active: int = None,
+            min_TVL: int = None,
             start_date: tuple = None, 
             end_date: tuple = None,
             days_batch_size: int = 15
@@ -17,10 +29,11 @@ class PoolSelector:
         
             self.subgraph_url = subgraph_url
             self.min_daily_volume_USD = min_daily_volume_USD
+            self.min_TVL = min_TVL
             self.start_date = start_date
             self.end_date = end_date
             self.days_batch_size = days_batch_size
-            self.min_days_active = min_days_active
+            
     
     def _normalize_pools_data(self, pools_data: list):
         # first level of normalization
@@ -42,7 +55,7 @@ class PoolSelector:
         return df_normalized
 
     # Aggregate the different snapshots to have single entries for each pools
-    def aggregate_snapshots(self, df_pools):
+    def _aggregate_snapshots(self, df_pools):
         # create a dataframe aggregating all the (script) descriptive features of 
         # the pools described in the gathered snapshots
         pools_description = df_pools.drop_duplicates(subset='pool.name', keep='first')
@@ -53,6 +66,7 @@ class PoolSelector:
         pools_stats = df_pools.groupby('pool.name').agg('median', numeric_only=True).sort_values('dailyVolumeUSD', ascending=False)
         pools_stats = pools_stats.merge(pools_description, on='pool.name') 
         
+        #TODO create a new class for the aggregate
         return pools_stats
 
     def _preprocess_pools_data(self, df_pools):
@@ -89,9 +103,9 @@ class PoolSelector:
 
         return df_pools_data
 
-    def remove_illiquid_pools(self, df_pools_data: pd.DataFrame, min_TVL:int, verbose: bool = True):
+    def _remove_illiquid_pools(self, df_pools_data: pd.DataFrame, verbose: bool = True):
         # remove snapshots where the liquidity is under min_TVL
-        snapshots_to_remove = df_pools_data['pool.totalValueLockedUSD'] < min_TVL
+        snapshots_to_remove = df_pools_data['pool.totalValueLockedUSD'] < self.min_TVL
         if verbose:
             print(f'{snapshots_to_remove.sum()} illiquid pools snapshots (over {df_pools_data.shape[0]}) have been removed ')
         
@@ -99,7 +113,7 @@ class PoolSelector:
         
         return df_pools_data
 
-    def get_pools_data(self, verbose: bool = False):
+    def _get_pools_data(self, verbose: bool = False):
 
         root_folder = os.path.abspath(os.path.join(__file__, '..', '..'))
         query_file_path = os.path.join(root_folder, 'queries', 'messari_getActivePools.gql')
@@ -146,4 +160,36 @@ class PoolSelector:
         if verbose:
             print(f'{df_pools_data.shape[0]} lquidity pools snapshots retrieved')
         return df_pools_data
+
+    def create_pool_selection(self, stables: str = 'exclude', verbose: bool = True) -> PoolsData: 
+        
+        # Fetch and pre-process data
+        pools_data = self._get_pools_data(self)
+
+        # Select how to deal with stablecoins pools snapshots
+        if stables == 'only':
+            df_pools = self.keep_only_stable_pools(pools_data, verbose = verbose)
+        elif stables == 'exclude':
+            df_pools = self.remove_stable_pools(pools_data, verbose = verbose)
+        elif stables == 'include':
+            pass
+        else:
+            Exception(f'Invalid stables keyword argument: {stables}')
+
+        # Remove pool snapshots with TVL < min_TVL
+        df_pools = self._remove_illiquid_pools(pools_data, verbose = verbose)
+
+        # Perform aggregation of the collected snapshots over the different days
+        df_pools = self._aggregate_snapshots(pools_data)
+        
+        if verbose:
+            print(f'{df_pools.shape[0]} pools were selected')
+
+        return PoolsData(pools_df=df_pools,
+                        subgraph_url=self.subgraph_url,
+                        min_daily_volume_USD=self.min_daily_volume_USD,
+                        min_TVL=self.min_TVL,
+                        start_date=self.start_date,
+                        end_date=self.end_date,
+                        days_batch_size=self.days_batch_size)
             
