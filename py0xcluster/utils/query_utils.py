@@ -2,7 +2,7 @@ import os
 
 from gql import gql, Client
 from gql.transport.requests import RequestsHTTPTransport
-
+from gql.transport.exceptions import TransportQueryError
 from py0xcluster.utils.time_utils import *
 
 def run_batched_query(
@@ -68,6 +68,7 @@ class GraphQLClient:
             url=endpoint,
             use_json=True,
         )
+
         self.client = Client(transport=self.transport, fetch_schema_from_transport=True)
 
     def _execute_query(self, query, variables):
@@ -99,8 +100,12 @@ class GraphQLClient:
             variables['skip'] = skip
 
             # Execute the query
-            result = self._execute_query(query, variables)
-
+            try:
+                result = self._execute_query(query, variables)
+            except TransportQueryError:
+                print(f'WARNING: Not all results were returned,\
+try smaller batches.\nvariables:\n{variables}')
+                break
             # Extract the baseEntity type (a single entity by query
             # must be asked for it to work) to have the key of the
             # list of result
