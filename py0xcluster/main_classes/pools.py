@@ -1,4 +1,3 @@
-import os 
 from dataclasses import dataclass
 
 import pandas as pd
@@ -83,7 +82,7 @@ class PoolSelector:
 
         return df_pools
 
-    def keep_only_stable_pools(self, df_pools_data: pd.DataFrame, verbose: bool = True):
+    def keep_only_stable_pools(self, df_pools_data: pd.DataFrame, verbose: bool = False):
         is_stable_pool = df_pools_data['token0.lastPriceUSD'].between(0.99,1.01) & df_pools_data['token1.lastPriceUSD'].between(0.99,1.01)
 
         if verbose: 
@@ -93,7 +92,7 @@ class PoolSelector:
 
         return df_pools_data
     
-    def remove_stable_pools(self, df_pools_data: pd.DataFrame, verbose: bool = True):
+    def remove_stable_pools(self, df_pools_data: pd.DataFrame, verbose: bool = False):
         is_stable_pool = df_pools_data['token0.lastPriceUSD'].between(0.99,1.01) & df_pools_data['token1.lastPriceUSD'].between(0.99,1.01)
 
         if verbose: 
@@ -103,7 +102,7 @@ class PoolSelector:
 
         return df_pools_data
 
-    def _remove_illiquid_pools(self, df_pools_data: pd.DataFrame, verbose: bool = True):
+    def _remove_illiquid_pools(self, df_pools_data: pd.DataFrame, verbose: bool = False):
         # remove snapshots where the liquidity is under min_TVL
         snapshots_to_remove = df_pools_data['pool.totalValueLockedUSD'] < self.min_TVL
         if verbose:
@@ -114,45 +113,23 @@ class PoolSelector:
         return df_pools_data
 
     def _get_pools_data(self, verbose: bool = False):
-
-        root_folder = os.path.abspath(os.path.join(__file__, '..', '..'))
-        query_file_path = os.path.join(root_folder, 'queries', 'messari_getActivePools.gql')
-                
-        # Create the client
-        client = GraphQLClient(self.subgraph_url)
         
-        # Generate list of 2 items tuple, start and end date of the date batch
-        days_batch_lim = [dates_lim for dates_lim in 
-            days_interval_tuples(self.start_date, self.end_date, self.days_batch_size)]
-        
-        full_results = []
-        for days_batch in days_batch_lim:
-            start_batch = timestamp_tuple_to_unix(days_batch[0])
-            end_batch = timestamp_tuple_to_unix(days_batch[1])
+        pools_query_variables = {
+            'min_TVL': self.min_TVL,
+            'minVolumeUSD' : self.min_daily_volume_USD
+        }
 
-            if verbose:
-                print(f'Queriying from {days_batch[0]} to {days_batch[1]}')
-
-            variables = {
-                'start_date': start_batch,
-                'end_date': end_batch,
-                'minVolumeUSD': self.min_daily_volume_USD
-                }
-
-
-            # Run the GraphQL query
-            result = client.run_query(query_file_path, variables=variables)
-            
-            # Break the loop if there are no more results
-            if len(result) == 0:
-                print('no data for this batch, exiting query')
-                break
-
-            # Add the results to the list
-            full_results.extend(result)
+        full_results = run_batched_query(
+            subgraph_url = self.subgraph_url, 
+            query_file = 'messari_getActivePools.gql', 
+            start_date = self.start_date, 
+            end_date = self.end_date, 
+            days_batch_size = self.days_batch_size, 
+            query_variables = pools_query_variables, 
+            verbose = verbose)    
 
         # normalize data from liquidityPoolDailySnapshots
-        df_pools_data = self._normalize_pools_data(full_results)
+        df_pools_data = self._normalize_pools_data(full_results['liquidityPoolDailySnapshots'])
         
         # convert types
         df_pools_data = self._preprocess_pools_data(df_pools_data)
@@ -161,10 +138,10 @@ class PoolSelector:
             print(f'{df_pools_data.shape[0]} lquidity pools snapshots retrieved')
         return df_pools_data
 
-    def create_pool_selection(self, stables: str = 'exclude', verbose: bool = True) -> PoolsData: 
+    def create_pool_selection(self, stables: str = 'exclude', verbose: bool = False) -> PoolsData: 
         
         # Fetch and pre-process data
-        pools_data = self._get_pools_data(self)
+        pools_data = self._get_pools_data(verbose = verbose)
 
         # Select how to deal with stablecoins pools snapshots
         if stables == 'only':

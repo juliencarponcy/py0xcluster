@@ -1,53 +1,65 @@
-'''
-TODO Build tools to construct custom queries
-'''
-from datetime import datetime, timedelta
-import time 
-import json
+import os
+
 from gql import gql, Client
 from gql.transport.requests import RequestsHTTPTransport
 
-def timestamp_tuple_to_unix(timestamp_tuple):
-    if isinstance(timestamp_tuple, tuple):
-        date_time = datetime(*timestamp_tuple)
-    elif isinstance(timestamp_tuple, datetime):
-        date_time = timestamp_tuple
-    unix_ts = int(time.mktime(date_time.timetuple()))
-    return unix_ts
+from py0xcluster.utils.time_utils import *
 
-def batch(iterable, n:int=1):
-    l = len(iterable)
-    for ndx in range(0, l, n):
-        yield iterable[ndx:min(ndx + n, l)]
+def run_batched_query(
+        subgraph_url: str, 
+        query_file: str, 
+        start_date: tuple, 
+        end_date: tuple, 
+        days_batch_size: int, 
+        query_variables: dict, 
+        verbose: bool = False) -> dict:
 
-def days_interval_tuples(
-        start_date:tuple, 
-        end_date:tuple, 
-        days_batch_size:int):
-    '''
-    Construct a generator of date limits over an interval
-    based on a batch size in days.
-    Return a generator which outputs a list of tuples of two datetime
-    (start and end of the batch)
+    # go back to root package folder
+    root_folder = os.path.abspath(os.path.join(__file__, '..', '..'))
+    
+    # construct query full filepath
+    query_file_path = os.path.join(root_folder, 'queries', query_file)
+            
+    # Create the client
+    client = GraphQLClient(subgraph_url)
+    
+    # Generate list of 2 items tuple, start and end date of the date batch
+    days_batch_lim = [dates_lim for dates_lim in 
+        days_interval_tuples(start_date, end_date, days_batch_size)]
+    
+    # initialize results dictionary
+    full_results = dict()
 
-    Example: 
+    # loop over batched of days
+    for days_batch in days_batch_lim:
+        start_batch = timestamp_tuple_to_unix(days_batch[0])
+        end_batch = timestamp_tuple_to_unix(days_batch[1])
 
-    days_batch_lim = [dates_lim for dates_lim in days_interval(start_date, end_date, days_batch_size)]
+        if verbose:
+            print(f'Queriying from {days_batch[0]} to {days_batch[1]}')
 
-    >> [(datetime(2022, 6, 10, 0, 0), datetime(2022, 6, 13, 0, 0)),
-        (datetime(2022, 6, 13, 0, 0), datetime(2022, 6, 16, 0, 0)),
-        (datetime(2022, 6, 16, 0, 0), datetime(2022, 6, 19, 0, 0)),
-        (datetime(2022, 6, 19, 0, 0), datetime(2022, 6, 22, 0, 0)),
-        (datetime(2022, 6, 22, 0, 0), datetime(2022, 6, 25, 0, 0)),
-        (datetime(2022, 6, 25, 0, 0), datetime(2022, 6, 28, 0, 0)),
-        (datetime(2022, 6, 28, 0, 0), datetime(2022, 6, 30, 0, 0))]
-    '''
-    start = datetime(*start_date)
-    end = datetime(*end_date)
-    curr = start
-    while curr < end:
-        yield (curr, min(end, curr + timedelta(days_batch_size)))
-        curr += timedelta(days_batch_size)
+        date_vars = {
+            'start_date': start_batch,
+            'end_date': end_batch,
+            }
+
+        # concatenate query variables with dates loop variables
+        variables = query_variables
+        variables.update(date_vars)
+
+        # Run the GraphQL query
+        result = client.run_query(query_file_path, variables=variables, verbose=False)
+        
+        for entity in list(result.keys()):
+            # create the entity as key with the list of result
+            if len(full_results) < len(result):
+                full_results[entity] = result[entity]
+            
+            else:
+                # extend the list of entities
+                full_results[entity].extend(result[entity])
+
+    return full_results
 
 class GraphQLClient:
     def __init__(self, endpoint):
@@ -65,15 +77,15 @@ class GraphQLClient:
             raise Exception(result['errors'])
         return result
 
-    def run_query(self, query_file, variables=None):
+    def run_query(self, query_file: str, variables: dict = None, verbose: bool = False):
         # Read the query from the .gql file
         with open(query_file, 'r') as f:
             query = gql(f.read())
         
         # Execute the query and return the results
-        return self._paginate_query(query, variables)
+        return self._paginate_query(query, variables, verbose)
 
-    def _paginate_query(self, query, variables, verbose:bool = True):
+    def _paginate_query(self, query, variables, verbose: bool = False):
         """Helper function to paginate a query and return all results"""
         # Set up the pagination variables
         first = 1000
@@ -109,12 +121,11 @@ class GraphQLClient:
                 
                 if len(data) > 0:
                     # Add the results to the list
-                    print(results.keys(), len(results[entity]))
                     results[entity].extend(data)
 
                 data_lengths.append(len(data))
 
-            print(data_lengths)
+            # check if the different entities return no more responses
             empty_data = [data_length == 0 for data_length in data_lengths]
 
             # Break the loop if there are no more results
@@ -126,61 +137,3 @@ class GraphQLClient:
             skip += first
 
         return results
-
-'''
-class GraphQLClient:
-    def __init__(self, endpoint):
-        # Set up the client
-        self.transport = RequestsHTTPTransport(
-            url=endpoint,
-            use_json=True,
-        )
-        self.client = Client(transport=self.transport, fetch_schema_from_transport=True)
-
-    # WARNING: pagination will only work if a single BaseEntity type is queried
-    # TODO refactor to separate query from pagination
-    def run_query(self, query_file, variables=None):
-        # Read the query from the .gql file
-
-
-        with open(query_file, 'r') as f:
-            query = gql(f.read())
-
-        # Set up the pagination variables
-        first = 1000
-        skip = 0
-        results = []
-
-        # Keep running the query until no more results are returned
-        while True:
-            # Update the variables with the current pagination values
-            variables['first'] = first
-            variables['skip'] = skip
-
-            # Execute the query
-            result = self.client.execute(query, variable_values=variables)
-
-            # Check for errors in the response
-            if 'errors' in result:
-                raise Exception(result['errors'])
-
-            # Extract the baseEntity type (a single entity by query
-            # must be asked for it to work) to have the key of the
-            # list of result
-            base_entity = list(result.keys())[0]
-
-            # Extract the data from the response
-            data = result[base_entity]
-
-            # Break the loop if there are no more results
-            if len(data) == 0:
-                break
-
-            # Add the results to the list
-            results.extend(data)
-
-            # Increase the skip value by the number of returned results
-            skip += len(data)
-
-        return results
-'''
