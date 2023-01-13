@@ -8,6 +8,8 @@ query getPoolEvents($first: Int $skip: Int, $pool_id: ID, $start_date:BigInt, $e
     amountOutUSD
     amountIn
     amountOut
+    from
+    to
     timestamp
     blockNumber
   }
@@ -18,9 +20,9 @@ query getPoolEvents($first: Int $skip: Int, $pool_id: ID, $start_date:BigInt, $e
     where: {pool_: {id: $pool_id}, timestamp_gte: $start_date, timestamp_lte: $end_date}
   ){
     amountUSD
+    inputTokenAmounts
     from
     to
-    inputTokenAmounts
     timestamp
     blockNumber
   }
@@ -31,9 +33,9 @@ query getPoolEvents($first: Int $skip: Int, $pool_id: ID, $start_date:BigInt, $e
     where: {pool_: {id: $pool_id}, timestamp_gte: $start_date, timestamp_lte: $end_date}
   ){
     amountUSD
+    inputTokenAmounts
     from
     to
-    inputTokenAmounts
     timestamp
     blockNumber
   }
