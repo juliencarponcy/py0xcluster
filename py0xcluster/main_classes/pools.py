@@ -83,23 +83,22 @@ class PoolSelector:
         return df_pools
 
     def keep_only_stable_pools(self, df_pools_data: pd.DataFrame, verbose: bool = False):
-        is_stable_pool = df_pools_data['token0.lastPriceUSD'].between(0.99,1.01) & df_pools_data['token1.lastPriceUSD'].between(0.99,1.01)
+        is_stable_pool = df_pools_data['token0.lastPriceUSD'].between(0.90,1.1) & df_pools_data['token1.lastPriceUSD'].between(0.90,1.1)
 
         if verbose: 
             print(f'{~is_stable_pool.sum()} non-stable pools snapshots (over {df_pools_data.shape[0]}) have been removed')
 
-        df_pools_data = df_pools_data[is_stable_pool]
+        df_pools_data = df_pools_data[is_stable_pool == True]
 
         return df_pools_data
     
     def remove_stable_pools(self, df_pools_data: pd.DataFrame, verbose: bool = False):
-        is_stable_pool = df_pools_data['token0.lastPriceUSD'].between(0.99,1.01) & df_pools_data['token1.lastPriceUSD'].between(0.99,1.01)
+        is_stable_pool = df_pools_data['token0.lastPriceUSD'].between(0.90,1.1) & df_pools_data['token1.lastPriceUSD'].between(0.90,1.1)
 
         if verbose: 
             print(f'{is_stable_pool.sum()} stable pools snapshots (over {df_pools_data.shape[0]}) have been removed')
 
-        df_pools_data = df_pools_data[~is_stable_pool]
-
+        df_pools_data = df_pools_data[is_stable_pool == False]
         return df_pools_data
 
     def _remove_illiquid_pools(self, df_pools_data: pd.DataFrame, verbose: bool = False):
@@ -154,10 +153,10 @@ class PoolSelector:
             Exception(f'Invalid stables keyword argument: {stables}')
 
         # Remove pool snapshots with TVL < min_TVL
-        df_pools = self._remove_illiquid_pools(pools_data, verbose = verbose)
+        df_pools = self._remove_illiquid_pools(df_pools, verbose = verbose)
 
         # Perform aggregation of the collected snapshots over the different days
-        df_pools = self._aggregate_snapshots(pools_data)
+        df_pools = self._aggregate_snapshots(df_pools)
         
         if verbose:
             print(f'{df_pools.shape[0]} pools were selected')
