@@ -11,7 +11,7 @@ query getActivePools($first: Int $skip: Int, $start_date:BigInt, $end_date:BigIn
   ) {
     timestamp
     dailyVolumeUSD
-    
+    dailySwapCount
     pool {
       
       symbol

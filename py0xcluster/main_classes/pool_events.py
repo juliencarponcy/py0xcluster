@@ -1,6 +1,19 @@
+from dataclasses import dataclass
+
 import pandas as pd
 
 from py0xcluster.utils.query_utils import *
+
+@dataclass
+class PoolsData:
+    pools_events_df: pd.DataFrame
+    subgraph_url: str
+    pool_ids: list
+    start_date: tuple
+    end_date: tuple
+    days_batch_size: int
+    
+
 
 class PoolEventGetter:
     def __init__(
