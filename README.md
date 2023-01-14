@@ -4,7 +4,7 @@ py0xCluster is a package dedicated to perform exploratory data analysis and mach
 
 This is for now an educational project for myself with the aim of performing fun data-science projects around blockchain data gathered through the Graph Network (https://thegraph.com/)
 
-## Satus: 
+## Status
 
 - Classes and methods functional to identify most active Pools and retrieve all the swaps / deposits / withdraws events of these pools. All data pre-processed and formatted to DataFrames. 
 
