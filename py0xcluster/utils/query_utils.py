@@ -14,14 +14,9 @@ def run_batched_query(
         query_variables: dict, 
         verbose: bool = False) -> dict:
 
-    # go back to root package folder
-    root_folder = os.path.abspath(os.path.join(__file__, '..', '..'))
-    
-    # construct query full filepath
-    query_file_path = os.path.join(root_folder, 'queries', query_file)
-            
+
     # Create the client
-    client = GraphQLClient(subgraph_url)
+    client = GraphQLClient(subgraph_url, query_file)
     
     # Generate list of 2 items tuple, start and end date of the date batch
     days_batch_lim = [dates_lim for dates_lim in 
@@ -48,7 +43,7 @@ def run_batched_query(
         variables.update(date_vars)
 
         # Run the GraphQL query
-        result = client.run_query(query_file_path, variables=variables, verbose=False)
+        result = client.run_query(variables=variables, verbose=False)
         
         for entity in list(result.keys()):
             # create the entity as key with the list of result
@@ -62,13 +57,22 @@ def run_batched_query(
     return full_results
 
 class GraphQLClient:
-    def __init__(self, endpoint):
+    def __init__(self, endpoint, query_file):
         # Set up the client
         self.transport = RequestsHTTPTransport(
             url=endpoint,
             use_json=True,
         )
+        # go back to root package folder
+        root_folder = os.path.abspath(os.path.join(__file__, '..', '..'))
+        
+        # construct query full filepath
+        query_file_path = os.path.join(root_folder, 'queries', query_file)
+                
 
+        # Read the query from the .gql file
+        with open(query_file_path, 'r') as f:
+            self.query = gql(f.read())
         self.client = Client(transport=self.transport, fetch_schema_from_transport=True)
 
     def _execute_query(self, query, variables):
@@ -78,13 +82,10 @@ class GraphQLClient:
             raise Exception(result['errors'])
         return result
 
-    def run_query(self, query_file: str, variables: dict = None, verbose: bool = False):
-        # Read the query from the .gql file
-        with open(query_file, 'r') as f:
-            query = gql(f.read())
-        
+    def run_query(self, variables: dict = None, verbose: bool = False):
+
         # Execute the query and return the results
-        return self._paginate_query(query, variables, verbose)
+        return self._paginate_query(self.query, variables, verbose)
 
     def _paginate_query(self, query, variables, verbose: bool = False):
         """Helper function to paginate a query and return all results"""

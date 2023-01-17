@@ -1,19 +1,29 @@
-from dataclasses import dataclass
-
 import pandas as pd
 
 from py0xcluster.utils.query_utils import *
 
-@dataclass
 class PoolsData:
-    pools_events_df: pd.DataFrame
-    subgraph_url: str
-    pool_ids: list
-    start_date: tuple
-    end_date: tuple
-    days_batch_size: int
-    
+    def __init__(
+        self,
+        swaps: pd.DataFrame,
+        deposits: pd.DataFrame,
+        withdraws: pd.DataFrame,
+        subgraph_url: str,
+        pool_ids: list,
+        start_date: tuple,
+        end_date: tuple,
+        days_batch_size: int,
+        ):
 
+        self.swaps = swaps
+        self.deposits = deposits
+        self.withdraws = withdraws
+
+        self.subgraph_url = subgraph_url
+        self.pool_ids = pool_ids
+        self.start_date = start_date
+        self.end_date = end_date
+        self.days_batch_size = days_batch_size
 
 class PoolEventGetter:
     def __init__(
@@ -26,6 +36,9 @@ class PoolEventGetter:
         ):
 
         self.subgraph_url = subgraph_url
+        # turn pool_ids into a 1 item list if only one pool requested
+        if isinstance(pool_ids, str):
+            pool_ids = [pool_ids]
         self.pool_ids = pool_ids
         self.start_date = start_date
         self.end_date = end_date
@@ -59,15 +72,27 @@ class PoolEventGetter:
 
         full_results = self._preprocess_events_data(full_results)
         
-        return full_results
+        poolsData = PoolsData(
+            full_results['swaps'],
+            full_results['deposits'],
+            full_results['withdraws'],
+            self.subgraph_url,
+            self.pool_ids,
+            self.start_date,
+            self.end_date,
+            self.days_batch_size
+        )
+
+        return poolsData
 
     def _preprocess_events_data(self, full_results):
         for entity in list(full_results.keys()):
             
             int_cols = ['blockNumber']
             float_cols = [col for col in full_results[entity].columns if 'mount' in col]
-            str_cols =  ['from','to','pool.id']# [col for col in full_results[entity].columns if ('mount' not in col) and ('timestamp' not in col)]
-            
+            str_cols =  ['from','to']# [col for col in full_results[entity].columns if ('mount' not in col) and ('timestamp' not in col)]
+            cat_cols = ['pool.id']
+
             full_results[entity]['timestamp'] = pd.to_datetime(full_results[entity]['timestamp'], unit='s')
 
             for col in int_cols:
@@ -79,6 +104,8 @@ class PoolEventGetter:
             for col in str_cols:
                 full_results[entity][col] = full_results[entity][col].astype('string')
 
+            for col in cat_cols:
+                full_results[entity][col] = full_results[entity][col].astype('category')
 
             return full_results
 

@@ -8,10 +8,12 @@ query getPoolEvents($first: Int $skip: Int, $pool_id: ID, $start_date:BigInt, $e
     amountOutUSD
     amountIn
     amountOut
+
     from
     to
     timestamp
     blockNumber
+    id
   }
 
   withdraws(
@@ -21,10 +23,12 @@ query getPoolEvents($first: Int $skip: Int, $pool_id: ID, $start_date:BigInt, $e
   ){
     amountUSD
     inputTokenAmounts
+
     from
     to
     timestamp
     blockNumber
+    id
   }
 
   deposits(
@@ -34,9 +38,11 @@ query getPoolEvents($first: Int $skip: Int, $pool_id: ID, $start_date:BigInt, $e
   ){
     amountUSD
     inputTokenAmounts
+
     from
     to
     timestamp
     blockNumber
+    id
   }
 }
