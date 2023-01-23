@@ -6,8 +6,6 @@ query getPoolEvents($first: Int $skip: Int, $pool_id: ID, $start_date:BigInt, $e
   ){
     amountInUSD
     amountOutUSD
-    amountIn
-    amountOut
 
     from
     to

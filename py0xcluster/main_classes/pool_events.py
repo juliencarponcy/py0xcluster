@@ -1,15 +1,17 @@
 import pandas as pd
 
 from py0xcluster.utils.query_utils import *
+from py0xcluster.main_classes.pools import PoolsRegister
 
-class PoolsData:
+class PoolsEvents:
     def __init__(
         self,
         swaps: pd.DataFrame,
         deposits: pd.DataFrame,
         withdraws: pd.DataFrame,
         subgraph_url: str,
-        pool_ids: list,
+        pools_data: PoolsRegister,
+        pools_ids: list,
         start_date: tuple,
         end_date: tuple,
         days_batch_size: int,
@@ -20,7 +22,8 @@ class PoolsData:
         self.withdraws = withdraws
 
         self.subgraph_url = subgraph_url
-        self.pool_ids = pool_ids
+        self.pools_data = pools_data
+        self.pool_ids = pools_data.pools_df['pool.id']
         self.start_date = start_date
         self.end_date = end_date
         self.days_batch_size = days_batch_size
@@ -29,20 +32,44 @@ class PoolEventGetter:
     def __init__(
         self,
         subgraph_url: str,
-        pool_ids: list,
+        pools_data : PoolsRegister,
+        pool_ids : list = None,
         start_date: tuple = None, 
         end_date: tuple = None,
         days_batch_size: int = 2
         ):
 
         self.subgraph_url = subgraph_url
+        self.pools_data = pools_data
+
         # turn pool_ids into a 1 item list if only one pool requested
         if isinstance(pool_ids, str):
             pool_ids = [pool_ids]
-        self.pool_ids = pool_ids
+
+        if not pool_ids:
+            self.pool_ids = pools_data.pools_df['pool.id'].values
+        else:
+            self.pool_ids = pool_ids
+
         self.start_date = start_date
         self.end_date = end_date
         self.days_batch_size = days_batch_size
+
+    def _apply_decimals(self, pool_results: dict, pool_id: str):
+
+        decimals = self.pools_data.pools_df.loc[self.pools_data.pools_df['pool.id'] == pool_id, ['token0.decimals', 'token1.decimals']].values.squeeze()
+        decimals = [int(decimal) for decimal in decimals]
+        for entity in list(pool_results.keys()):
+            amount_cols = [col for col in pool_results[entity].columns
+                if ('mount' in col) and ('USD' not in col)]
+            
+            for col in amount_cols:
+                if '0' in col:
+                    pool_results[entity][col] = pool_results[entity][col].astype(float) / (10 ** decimals[0])
+                elif '1' in col:
+                    pool_results[entity][col] = pool_results[entity][col].astype(float) / (10 ** decimals[1])
+
+        return pool_results
 
     def get_events(self, verbose: bool = False):
 
@@ -67,16 +94,17 @@ class PoolEventGetter:
                 verbose = verbose)    
 
             pool_results = self._normalize_pool_events(pool_results)
-
+            
             full_results = self._aggregate_events(full_results, pool_id, pool_results)
 
         full_results = self._preprocess_events_data(full_results)
         
-        poolsData = PoolsData(
+        poolsData = PoolsEvents(
             full_results['swaps'],
             full_results['deposits'],
             full_results['withdraws'],
             self.subgraph_url,
+            self.pools_data,
             self.pool_ids,
             self.start_date,
             self.end_date,
@@ -90,7 +118,7 @@ class PoolEventGetter:
             
             int_cols = ['blockNumber']
             float_cols = [col for col in full_results[entity].columns if 'mount' in col]
-            str_cols =  ['from','to']# [col for col in full_results[entity].columns if ('mount' not in col) and ('timestamp' not in col)]
+            str_cols =  ['from','to','id']# [col for col in full_results[entity].columns if ('mount' not in col) and ('timestamp' not in col)]
             cat_cols = ['pool.id']
 
             full_results[entity]['timestamp'] = pd.to_datetime(full_results[entity]['timestamp'], unit='s')
@@ -107,17 +135,19 @@ class PoolEventGetter:
             for col in cat_cols:
                 full_results[entity][col] = full_results[entity][col].astype('category')
 
-            return full_results
+        return full_results
 
     def _aggregate_events(self, full_results, pool_id, pool_results):
         # check whether data comes from the first pull
         # (empty aggregate)
         is_empty = len(full_results) == 0
 
+        # pool_results = self._apply_decimals(pool_results, pool_id)
+
         for entity in list(pool_results.keys()):
             pool_results[entity]['pool.id'] = pool_id
             # pd.to_datetime(pool_results[entity]['timestamp'])
-        
+
             if is_empty:
                 full_results = pool_results
             else:

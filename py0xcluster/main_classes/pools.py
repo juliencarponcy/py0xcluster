@@ -5,7 +5,7 @@ import pandas as pd
 from py0xcluster.utils.query_utils import *
 
 @dataclass
-class PoolsData:
+class PoolsRegister:
     pools_df: pd.DataFrame
     subgraph_url: str
     min_daily_volume_USD: int
@@ -137,7 +137,7 @@ class PoolSelector:
             print(f'{df_pools_data.shape[0]} lquidity pools snapshots retrieved')
         return df_pools_data
 
-    def create_pool_selection(self, stables: str = 'exclude', verbose: bool = False) -> PoolsData: 
+    def create_pool_selection(self, stables: str = 'exclude', verbose: bool = False) -> PoolsRegister: 
         
         # Fetch and pre-process data
         pools_data = self._get_pools_data(verbose = verbose)
@@ -161,7 +161,7 @@ class PoolSelector:
         if verbose:
             print(f'{df_pools.shape[0]} pools were selected')
 
-        return PoolsData(pools_df=df_pools,
+        return PoolsRegister(pools_df=df_pools,
                         subgraph_url=self.subgraph_url,
                         min_daily_volume_USD=self.min_daily_volume_USD,
                         min_TVL=self.min_TVL,

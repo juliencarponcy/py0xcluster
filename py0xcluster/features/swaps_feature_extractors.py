@@ -1,6 +1,13 @@
 import pandas as pd
 
 # Helpers
+def find_limit_orders(
+        df_object: pd.DataFrame):
+
+    df_object['is_limit_order'] = (df_object['InputTokenAmount0'] == 0) | (df_object['InputTokenAmount1'] == 0)
+    df_object['is_limit_order'] = df_object['is_limit_order'].astype(float)
+    
+    return df_object
 
 def compute_slippage(
         df_object: pd.DataFrame):
@@ -9,21 +16,37 @@ def compute_slippage(
 
     return df_object
 
-def aggregate_median(
+def aggregate_features(
         df_object: pd.DataFrame,
+        method: str = 'median',
         columns: list = ['amountInUSD.zscore', 'amountOutUSD.zscore',\
-            'amountIn.zscore','amountOut.zscore', 'slippage', 'slippage.zscore'],
+            'slippage', 'slippage.zscore', 'sameFromTo'],
         group_by: str = 'from'):
+    
+    valid_methods = ('median', 'mean')
 
     if isinstance(columns, str):
         columns = [columns]
 
+    if method not in valid_methods:
+        raise ValueError(f"Invalid method: {method}. Valid event types are {valid_methods}")
+    
     aggregate_df = pd.DataFrame()
     for col in columns:
-        aggregate_df[f"{col}.median"] = df_object.groupby(group_by)[col].aggregate('median')
+        aggregate_df[f"{col}.{method}"] = df_object.groupby(group_by)[col].aggregate('median')
     
     return aggregate_df
-       
+
+def same_from_to(       
+        df_object: pd.DataFrame,
+        to_float: bool = True
+    ):
+
+    df_object['sameFromTo'] = df_object['from'] == df_object['to']
+    if to_float:
+        df_object['sameFromTo'] = df_object['sameFromTo'].astype('float')
+
+    return df_object
 
 def compute_zscore(
         df_object: pd.DataFrame,

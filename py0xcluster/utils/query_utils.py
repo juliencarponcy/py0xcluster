@@ -3,6 +3,7 @@ import os
 from gql import gql, Client
 from gql.transport.requests import RequestsHTTPTransport
 from gql.transport.exceptions import TransportQueryError
+
 from py0xcluster.utils.time_utils import *
 
 def run_batched_query(
