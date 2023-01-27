@@ -76,10 +76,10 @@ class PoolEventGetter:
         # initialize dictionary for all pools
         full_results = dict()
 
-        for pool_id in self.pool_ids:
+        for pool_nb, pool_id in enumerate(self.pool_ids):
 
             if verbose:
-                print(f'pool: {pool_id}')
+                print(f'pool nb {pool_nb}/{len(self.pool_ids)}: {pool_id}')
             events_query_variables = {
                 'pool_id': pool_id
             }

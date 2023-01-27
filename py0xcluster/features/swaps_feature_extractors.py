@@ -18,23 +18,24 @@ def compute_slippage(
 
 def aggregate_features(
         df_object: pd.DataFrame,
-        method: str = 'median',
+        methods: list = ['median','mean','min','max','count'],
         columns: list = ['amountInUSD.zscore', 'amountOutUSD.zscore',\
             'slippage', 'slippage.zscore', 'sameFromTo'],
         group_by: str = 'from'):
     
-    valid_methods = ('median', 'mean')
+    valid_methods = ('median', 'mean', 'min', 'max','count')
 
     if isinstance(columns, str):
         columns = [columns]
 
-    if method not in valid_methods:
-        raise ValueError(f"Invalid method: {method}. Valid event types are {valid_methods}")
+    if not all([(method in valid_methods) for method in methods]):
+        raise ValueError(f"At least one invalid method: {methods}. Valid event types are {valid_methods}")
     
     aggregate_df = pd.DataFrame()
-    for col in columns:
-        aggregate_df[f"{col}.{method}"] = df_object.groupby(group_by)[col].aggregate('median')
-    
+    for method in methods:
+        for col in columns:
+            aggregate_df[f"{col}.{method}"] = df_object.groupby(group_by)[col].aggregate(method)
+        
     return aggregate_df
 
 def same_from_to(       

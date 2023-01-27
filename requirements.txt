@@ -1,8 +1,12 @@
 pip
 ipython
-pandas
 web3
 gql
 
+pandas
+matplotlib
+
+scikit-learn
+umap
 
 
