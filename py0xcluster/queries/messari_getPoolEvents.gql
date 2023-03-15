@@ -1,4 +1,4 @@
-query getPoolEvents($first: Int $skip: Int, $pool_id: ID, $start_date:BigInt, $end_date:BigInt) {
+query getPoolEvents($first: Int $skip: Int, $pool_id: Bytes, $start_date:BigInt, $end_date:BigInt) {
   swaps(
     first: $first
     skip: $skip
@@ -7,8 +7,9 @@ query getPoolEvents($first: Int $skip: Int, $pool_id: ID, $start_date:BigInt, $e
     amountInUSD
     amountOutUSD
 
-    from
-    to
+    account{
+      id
+    }
     timestamp
     blockNumber
     id
@@ -22,8 +23,9 @@ query getPoolEvents($first: Int $skip: Int, $pool_id: ID, $start_date:BigInt, $e
     amountUSD
     inputTokenAmounts
 
-    from
-    to
+    account{
+      id
+    }
     timestamp
     blockNumber
     id
@@ -37,8 +39,9 @@ query getPoolEvents($first: Int $skip: Int, $pool_id: ID, $start_date:BigInt, $e
     amountUSD
     inputTokenAmounts
 
-    from
-    to
+    account{
+      id
+    }
     timestamp
     blockNumber
     id

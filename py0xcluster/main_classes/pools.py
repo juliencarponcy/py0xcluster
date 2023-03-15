@@ -62,7 +62,7 @@ class PoolSelector:
 
         # Compute MEDIAN of numeric values (volume, TVL, pries)
         # consider adding flexibility for aggregation method
-        pools_stats = df_pools.groupby('pool.name').agg('median', numeric_only=True).sort_values('dailyVolumeUSD', ascending=False)
+        pools_stats = df_pools.groupby('pool.name').agg('median', numeric_only=True).sort_values('dailyTotalVolumeUSD', ascending=False)
         pools_stats = pools_stats.merge(pools_description, on='pool.name') 
         
         #TODO create a new class for the aggregate

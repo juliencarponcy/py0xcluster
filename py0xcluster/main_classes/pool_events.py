@@ -23,7 +23,11 @@ class PoolsEvents:
 
         self.subgraph_url = subgraph_url
         self.pools_data = pools_data
-        self.pool_ids = pools_data.pools_df['pool.id']
+        # take pool_ids from pools_data or from pools_ids list if not provided
+        if pools_data == None:
+            self.pool_ids = pools_ids
+        else:
+            self.pool_ids = pools_data.pools_df['pool.id']
         self.start_date = start_date
         self.end_date = end_date
         self.days_batch_size = days_batch_size
@@ -77,9 +81,10 @@ class PoolEventGetter:
         full_results = dict()
 
         for pool_nb, pool_id in enumerate(self.pool_ids):
-
+                        
             if verbose:
                 print(f'pool nb {pool_nb}/{len(self.pool_ids)}: {pool_id}')
+            
             events_query_variables = {
                 'pool_id': pool_id
             }
@@ -116,9 +121,13 @@ class PoolEventGetter:
     def _preprocess_events_data(self, full_results):
         for entity in list(full_results.keys()):
             
+            # no withdrawals or deposits or swaps for this pool
+            if len(full_results[entity]) == 0:
+                continue
+
             int_cols = ['blockNumber']
             float_cols = [col for col in full_results[entity].columns if 'mount' in col]
-            str_cols =  ['from','to','id']# [col for col in full_results[entity].columns if ('mount' not in col) and ('timestamp' not in col)]
+            str_cols =  ['account.id','id']# [col for col in full_results[entity].columns if ('mount' not in col) and ('timestamp' not in col)]
             cat_cols = ['pool.id']
 
             full_results[entity]['timestamp'] = pd.to_datetime(full_results[entity]['timestamp'], unit='s')

@@ -2,15 +2,15 @@ query getActivePools($first: Int $skip: Int, $start_date:BigInt, $end_date:BigIn
   liquidityPoolDailySnapshots(
     first: $first
     skip: $skip
-    orderBy: dailyVolumeUSD
+    orderBy: dailyTotalVolumeUSD
     orderDirection: desc
     where: {
-      dailyVolumeUSD_gte: $minVolumeUSD
+      dailyTotalVolumeUSD_gte: $minVolumeUSD
       timestamp_lte: $end_date
       timestamp_gte: $start_date}
   ) {
     timestamp
-    dailyVolumeUSD
+    dailyTotalVolumeUSD
     
     pool {
       
