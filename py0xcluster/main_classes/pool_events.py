@@ -24,10 +24,11 @@ class PoolsEvents:
         self.subgraph_url = subgraph_url
         self.pools_data = pools_data
         # take pool_ids from pools_data or from pools_ids list if not provided
-        if pools_data == None:
-            self.pool_ids = pools_ids
-        else:
+        if pools_ids == None:
             self.pool_ids = pools_data.pools_df['pool.id']
+        else:
+            self.pool_ids = pools_ids
+
         self.start_date = start_date
         self.end_date = end_date
         self.days_batch_size = days_batch_size
@@ -68,9 +69,9 @@ class PoolEventGetter:
                 if ('mount' in col) and ('USD' not in col)]
             
             for col in amount_cols:
-                if '0' in col:
+                if 'In' in col or '0' in col:
                     pool_results[entity][col] = pool_results[entity][col].astype(float) / (10 ** decimals[0])
-                elif '1' in col:
+                elif 'Out' in col or '1' in col:
                     pool_results[entity][col] = pool_results[entity][col].astype(float) / (10 ** decimals[1])
 
         return pool_results
@@ -151,7 +152,7 @@ class PoolEventGetter:
         # (empty aggregate)
         is_empty = len(full_results) == 0
 
-        # pool_results = self._apply_decimals(pool_results, pool_id)
+        pool_results = self._apply_decimals(pool_results, pool_id)
 
         for entity in list(pool_results.keys()):
             pool_results[entity]['pool.id'] = pool_id

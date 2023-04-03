@@ -6,7 +6,8 @@ query getPoolEvents($first: Int $skip: Int, $pool_id: Bytes, $start_date:BigInt,
   ){
     amountInUSD
     amountOutUSD
-
+    amountIn
+    amountOut
     account{
       id
     }
@@ -22,7 +23,6 @@ query getPoolEvents($first: Int $skip: Int, $pool_id: Bytes, $start_date:BigInt,
   ){
     amountUSD
     inputTokenAmounts
-
     account{
       id
     }
