@@ -58,18 +58,12 @@ def run_batched_query(
     return full_results
 
 class GraphQLClient:
-    def __init__(self, endpoint, query_file):
+    def __init__(self, endpoint, query_file_path):
         # Set up the client
         self.transport = RequestsHTTPTransport(
             url=endpoint,
             use_json=True,
         )
-        # go back to root package folder
-        root_folder = os.path.abspath(os.path.join(__file__, '..', '..'))
-        
-        # construct query full filepath
-        query_file_path = os.path.join(root_folder, 'queries', query_file)
-                
 
         # Read the query from the .gql file
         with open(query_file_path, 'r') as f:

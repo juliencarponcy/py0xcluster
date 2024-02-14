@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pandas as pd
 
 from py0xcluster.utils.query_utils import *
@@ -6,12 +8,12 @@ from py0xcluster.main_classes.pools import PoolsRegister
 class PoolsEvents:
     def __init__(
         self,
-        swaps: pd.DataFrame,
-        deposits: pd.DataFrame,
-        withdraws: pd.DataFrame,
+        swaps: pd.DataFrame | None,
+        deposits: pd.DataFrame | None,
+        withdraws: pd.DataFrame | None,
         subgraph_url: str,
-        pools_data: PoolsRegister,
-        pools_ids: list,
+        pools_data: PoolsRegister | None,
+        pools_ids: list | None,
         start_date: tuple,
         end_date: tuple,
         days_batch_size: int,
@@ -37,6 +39,7 @@ class PoolEventGetter:
     def __init__(
         self,
         subgraph_url: str,
+        query_file_path: str,
         pools_data : PoolsRegister,
         pool_ids : list = None,
         start_date: tuple = None, 
@@ -46,8 +49,8 @@ class PoolEventGetter:
 
         self.subgraph_url = subgraph_url
         self.pools_data = pools_data
+        self.query_file_path = Path(query_file_path)
 
-        # turn pool_ids into a 1 item list if only one pool requested
         if isinstance(pool_ids, str):
             pool_ids = [pool_ids]
 
@@ -60,6 +63,7 @@ class PoolEventGetter:
         self.end_date = end_date
         self.days_batch_size = days_batch_size
 
+    @staticmethod
     def _apply_decimals(self, pool_results: dict, pool_id: str):
 
         decimals = self.pools_data.pools_df.loc[self.pools_data.pools_df['pool.id'] == pool_id, ['token0.decimals', 'token1.decimals']].values.squeeze()
@@ -92,7 +96,7 @@ class PoolEventGetter:
 
             pool_results = run_batched_query(
                 subgraph_url = self.subgraph_url, 
-                query_file = 'messari_getPoolEvents.gql', 
+                query_file = self.query_file_path, 
                 start_date = self.start_date, 
                 end_date = self.end_date, 
                 days_batch_size = self.days_batch_size, 
@@ -105,8 +109,12 @@ class PoolEventGetter:
 
         full_results = self._preprocess_events_data(full_results)
         
+        # temp hack to solve the issue of the swaps data
+        if 'swaps' not in full_results.keys():
+            full_results['swaps'] = None
+
         poolsData = PoolsEvents(
-            full_results['swaps'],
+            full_results['swaps'], # Solve this
             full_results['deposits'],
             full_results['withdraws'],
             self.subgraph_url,

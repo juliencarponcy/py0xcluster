@@ -1,3 +1,4 @@
+from pathlib import Path
 from dataclasses import dataclass
 
 import pandas as pd
@@ -19,14 +20,16 @@ class PoolSelector:
     def __init__(
         self, 
         subgraph_url: str,
+        query_file_path: str,
         min_daily_volume_USD: int = 100000,
         min_TVL: int = None,
         start_date: tuple = None, 
         end_date: tuple = None,
         days_batch_size: int = 15
-        ) -> pd.DataFrame:
+        ):
     
         self.subgraph_url = subgraph_url
+        self.query_file_path = Path(query_file_path)
         self.min_daily_volume_USD = min_daily_volume_USD
         self.min_TVL = min_TVL
         self.start_date = start_date
@@ -62,13 +65,14 @@ class PoolSelector:
 
         # Compute MEDIAN of numeric values (volume, TVL, pries)
         # consider adding flexibility for aggregation method
-        pools_stats = df_pools.groupby('pool.name').agg('median', numeric_only=True).sort_values('dailyTotalVolumeUSD', ascending=False)
+        pools_stats = df_pools.groupby('pool.name').agg('median', numeric_only=True).sort_values('dailyVolumeUSD', ascending=False)
         pools_stats = pools_stats.merge(pools_description, on='pool.name') 
         
         #TODO create a new class for the aggregate
         return pools_stats
 
     def _preprocess_pools_data(self, df_pools):
+        # TODO remove this hack of typing using string matching
         float_cols = [col for col in df_pools.columns if 'USD' in col]
         str_cols = [col for col in df_pools.columns if ('USD' not in col) and ('timestamp' not in col)]
 
@@ -120,14 +124,13 @@ class PoolSelector:
 
         full_results = run_batched_query(
             subgraph_url = self.subgraph_url, 
-            query_file = 'messari_getActivePools.gql', 
+            query_file = self.query_file_path, 
             start_date = self.start_date, 
             end_date = self.end_date, 
             days_batch_size = self.days_batch_size, 
             query_variables = pools_query_variables, 
             verbose = verbose)    
 
-        # normalize data from liquidityPoolDailySnapshots
         df_pools_data = self._normalize_pools_data(full_results['liquidityPoolDailySnapshots'])
         
         # convert types

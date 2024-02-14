@@ -2,11 +2,13 @@ pip
 ipython
 web3
 gql
+requests_toolbelt
 
 pandas
 matplotlib
 
 scikit-learn
-umap
+umap-learn
+
 
 
