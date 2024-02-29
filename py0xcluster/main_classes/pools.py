@@ -9,7 +9,7 @@ from py0xcluster.utils.query_utils import *
 class PoolsRegister:
     pools_df: pd.DataFrame
     subgraph_url: str
-    min_daily_volume_USD: int
+    min_vol: int
     min_TVL: int
     start_date: tuple
     end_date: tuple
@@ -21,8 +21,12 @@ class PoolSelector:
         self, 
         subgraph_url: str,
         query_file_path: str,
-        min_daily_volume_USD: int = 100000,
-        min_TVL: int = None,
+        min_vol: int = 500,
+        max_vol: int = 1000000,
+        min_TVL: int = 500,
+        max_TVL: int = 100000,
+        min_fees: int = 0,
+        min_mintburnUSD: int = 100,
         start_date: tuple = None, 
         end_date: tuple = None,
         days_batch_size: int = 15
@@ -30,8 +34,12 @@ class PoolSelector:
     
         self.subgraph_url = subgraph_url
         self.query_file_path = Path(query_file_path)
-        self.min_daily_volume_USD = min_daily_volume_USD
+        self.min_vol = min_vol
+        self.max_vol = max_vol
         self.min_TVL = min_TVL
+        self.max_TVL = max_TVL
+        self.min_fees = min_fees
+        self.min_mintburnUSD = min_mintburnUSD
         self.start_date = start_date
         self.end_date = end_date
         self.days_batch_size = days_batch_size
@@ -119,7 +127,12 @@ class PoolSelector:
         
         pools_query_variables = {
             'min_TVL': self.min_TVL,
-            'minVolumeUSD' : self.min_daily_volume_USD
+            'min_fees': self.min_fees,
+            'min_mintburnUSD': self.min_mintburnUSD,
+            'min_tvl': self.min_TVL,
+            'max_tvl': self.max_TVL,
+            'min_vol': self.min_vol,
+            'max_vol': self.max_vol,
         }
 
         full_results = run_batched_query(
@@ -131,7 +144,7 @@ class PoolSelector:
             query_variables = pools_query_variables, 
             verbose = verbose)    
 
-        df_pools_data = self._normalize_pools_data(full_results['liquidityPoolDailySnapshots'])
+        df_pools_data = self._normalize_pools_data(full_results['poolDayDatas'])
         
         # convert types
         df_pools_data = self._preprocess_pools_data(df_pools_data)

@@ -1,0 +1,109 @@
+# https://api.thegraph.com/subgraphs/name/revert-finance/uniswap-v3-bnb
+query getTargetPools($first: Int,
+                      $skip: Int, 
+                      $start_date: Int, 
+                      $end_date: Int,       
+                      $min_fees: BigDecimal,
+                      $min_tvl: BigDecimal,
+                      $max_tvl: BigDecimal,
+                      $min_vol: BigDecimal,
+                      $max_vol: BigDecimal,
+                      $min_mintburnUSD: BigDecimal) {
+  poolDayDatas(
+    first: $first
+    skip: $skip
+    orderBy: volumeUSD
+    orderDirection: asc
+    where: {
+      feesUSD_gte: $min_fees,
+      tvlUSD_gte: $min_tvl,
+      tvlUSD_lte: $max_tvl,
+      volumeUSD_gte: $min_vol,
+      volumeUSD_lte: $max_vol,
+      date_lte: $end_date,
+      date_gte: $start_date,
+      }
+  ) 
+    {
+    date
+    feeGrowthGlobal0X128
+    feeGrowthGlobal1X128
+    feesUSD
+    high
+    close
+    id
+    liquidity
+    low
+    open
+    pool {
+      id
+      feeTier
+      feesUSD
+      collectedFeesUSD
+      collectedFeesToken1
+      collectedFeesToken0
+      burns(where: {amountUSD_gte: $min_mintburnUSD}) {
+        amount0
+        amount1
+        amountUSD
+        origin
+        owner
+        tickLower
+        tickUpper
+        id
+      }
+      liquidityProviderCount
+      mints(where: {amountUSD_gte: $min_mintburnUSD}) {
+        amount
+        amount0
+        amount1
+        amountUSD
+        origin
+        id
+        logIndex
+        owner
+        sender
+      }
+      tick
+      txCount
+      untrackedVolumeUSD
+      volumeToken0
+      volumeToken1
+      volumeUSD
+      token0Price
+      token1Price
+      totalValueLockedETH
+      totalValueLockedToken0
+      totalValueLockedToken1
+      totalValueLockedUSD
+      totalValueLockedUSDUntracked
+      token0 {
+        decimals
+        derivedETH
+        feesUSD
+        id
+        name
+        poolCount
+        symbol
+      }
+      token1 {
+        decimals
+        derivedETH
+        feesUSD
+        id
+        name
+        poolCount
+        symbol
+      }
+    }
+    token0Price
+    token1Price
+    tvlUSD
+    volumeUSD
+    volumeToken1
+    volumeToken0
+    txCount
+    tick
+    sqrtPrice
+  }
+}

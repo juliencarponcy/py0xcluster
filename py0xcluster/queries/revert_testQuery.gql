@@ -1,0 +1,18 @@
+query MyQuery {
+  mints {
+    amountUSD
+    amount0
+    amount1
+    owner
+    token0 {
+      symbol
+      volumeUSD
+    }
+    token1 {
+      symbol
+    }
+    tickLower
+    tickUpper
+    timestamp
+  }
+}
