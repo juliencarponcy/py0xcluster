@@ -43,6 +43,7 @@ query getTargetPools($first: Int,
       collectedFeesToken1
       collectedFeesToken0
       burns(where: {amountUSD_gte: $min_mintburnUSD}) {
+        amount
         amount0
         amount1
         amountUSD
@@ -59,10 +60,9 @@ query getTargetPools($first: Int,
         amount1
         amountUSD
         origin
-        id
-        logIndex
         owner
         sender
+        id
       }
       tick
       txCount

@@ -144,44 +144,44 @@ class PoolSelector:
             query_variables = pools_query_variables, 
             verbose = verbose)    
 
-        df_pools_data = self._normalize_pools_data(full_results['poolDayDatas'])
+        # df_pools_data = self._normalize_pools_data(full_results['poolDayDatas'])
         
-        # convert types
-        df_pools_data = self._preprocess_pools_data(df_pools_data)
+        # # convert types
+        # df_pools_data = self._preprocess_pools_data(df_pools_data)
     
-        if verbose:
-            print(f'{df_pools_data.shape[0]} lquidity pools snapshots retrieved')
-        return df_pools_data
+        # if verbose:
+        #     print(f'{df_pools_data.shape[0]} lquidity pools snapshots retrieved')
+        return full_results #df_pools_data
 
     def create_pool_selection(self, stables: str = 'exclude', verbose: bool = False) -> PoolsRegister: 
         
         # Fetch and pre-process data
         pools_data = self._get_pools_data(verbose = verbose)
+        return pools_data
+        # # Select how to deal with stablecoins pools snapshots
+        # if stables == 'only':
+        #     df_pools = self.keep_only_stable_pools(pools_data, verbose = verbose)
+        # elif stables == 'exclude':
+        #     df_pools = self.remove_stable_pools(pools_data, verbose = verbose)
+        # elif stables == 'include':
+        #     pass
+        # else:
+        #     Exception(f'Invalid stables keyword argument: {stables}')
 
-        # Select how to deal with stablecoins pools snapshots
-        if stables == 'only':
-            df_pools = self.keep_only_stable_pools(pools_data, verbose = verbose)
-        elif stables == 'exclude':
-            df_pools = self.remove_stable_pools(pools_data, verbose = verbose)
-        elif stables == 'include':
-            pass
-        else:
-            Exception(f'Invalid stables keyword argument: {stables}')
+        # # Remove pool snapshots with TVL < min_TVL
+        # df_pools = self._remove_illiquid_pools(df_pools, verbose = verbose)
 
-        # Remove pool snapshots with TVL < min_TVL
-        df_pools = self._remove_illiquid_pools(df_pools, verbose = verbose)
-
-        # Perform aggregation of the collected snapshots over the different days
-        df_pools = self._aggregate_snapshots(df_pools)
+        # # Perform aggregation of the collected snapshots over the different days
+        # df_pools = self._aggregate_snapshots(df_pools)
         
-        if verbose:
-            print(f'{df_pools.shape[0]} pools were selected')
+        # if verbose:
+        #     print(f'{df_pools.shape[0]} pools were selected')
 
-        return PoolsRegister(pools_df=df_pools,
-                        subgraph_url=self.subgraph_url,
-                        min_daily_volume_USD=self.min_daily_volume_USD,
-                        min_TVL=self.min_TVL,
-                        start_date=self.start_date,
-                        end_date=self.end_date,
-                        days_batch_size=self.days_batch_size)
+        # return PoolsRegister(pools_df=df_pools,
+        #                 subgraph_url=self.subgraph_url,
+        #                 min_daily_volume_USD=self.min_daily_volume_USD,
+        #                 min_TVL=self.min_TVL,
+        #                 start_date=self.start_date,
+        #                 end_date=self.end_date,
+        #                 days_batch_size=self.days_batch_size)
             
