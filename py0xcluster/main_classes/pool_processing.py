@@ -3,36 +3,55 @@ import numpy as np
 from decimal import Decimal
 import json
 
-class PoolDaysDataNormalizer:
-    def __init__(self, nested_data_dict: dict):
-        self.data = nested_data_dict
+class PoolDataProcessor:
+    def __init__(self):
+        ...
 
-    def _normalize_main_data(self):
+    def transform(self, data: dict):
+        pool_days_df = self._normalize_main_data(data)
+        
+        for col in pool_days_df.columns:
+            pool_days_df[col] = self._handle_data_type(pool_days_df[col])
+        
+        mints_df, burns_df = self.extract_liquidity_events(pool_days_df)
+        
+        pool_days_df.drop(columns=['pool.mints','pool.burns'], inplace=True)
+        
+        mints_df = mints_df.apply(lambda x: self._handle_data_type(x))
+        burns_df = burns_df.apply(lambda x: self._handle_data_type(x))
+
+        return pool_days_df, mints_df, burns_df
+    
+    def _normalize_main_data(self, nested_data_dict: dict):
+        self.data = nested_data_dict
         # Normalize the main data
         if len(self.data.keys()) > 1:
             raise ValueError('The data has more than one main key') 
          
-        main_df = pd.json_normalize(self.data[list(self.data.keys())[0]])
-        return main_df
+        pool_days_df = pd.json_normalize(self.data[list(self.data.keys())[0]])
+        return pool_days_df
     
-    def _handle_data_type(series: pd.Series):
-        if series.dtype == 'object':
-            if series.name.__contains__('date'):
-                series = series.astype('datetime64[ns]')
-            elif series.name.__contains__('symbol') or series.name.__contains__('name'):
-                series = series.astype('str')
-            elif series.name.__contains__('X128'):
-                series = series.apply(lambda x: np.float64(Decimal(x))/(2^128))
-            elif series.name.__contains__('X96'):
-                series = series.apply(lambda x: np.float64(Decimal(x))/(2^96))
-            elif series.name.__contains__('Count') or series.name.__contains__('tick'):
-                series = series.astype('int64')
-            # elif series.name in ['burns', 'mints','swaps']:
-            #     series = pd.json_normalize(series)
-            else:
+    def _handle_data_type(self, series: pd.Series):
+        if series.name.__contains__('date'):
+            series = pd.to_datetime(series, unit='s')
+        elif series.name.__contains__('symbol') or series.name.__contains__('name') or series.name.__contains__('id'):
+            series = series.astype('string')
+        elif series.name.__contains__('X128'):
+            series = series.apply(lambda x: np.float64(Decimal(x))/(2^128))
+        elif series.name.__contains__('X96'):
+            series = series.apply(lambda x: np.float64(Decimal(x))/(2^96))
+        elif series.name.__contains__('Count') or series.name.__contains__('tick'):
+            series = series.astype('int64')
+        elif series.name in ['sender', 'owner','origin']:
+            series = series.astype('string')
+        else:
+            try:
                 series = series.astype('float64')
-
+            except:
+                pass
         return series
+    
+    
     def _normalize_nested_response(self):
         df_dict = {}
         for key, value in self.data.items():
@@ -53,10 +72,10 @@ class PoolDaysDataNormalizer:
             burns_df = pd.json_normalize(row['pool.burns'])
             mints_df['pool.id'] = row['id']
             burns_df['pool.id'] = row['id']
-            mints_df['pool.token0'] = row['pool.token0.symbol']
-            mints_df['pool.token1'] = row['pool.token1.symbol']
-            burns_df['pool.token0'] = row['pool.token0.symbol']
-            burns_df['pool.token1'] = row['pool.token1.symbol']
+            mints_df['pool.token0.symbol'] = row['pool.token0.symbol']
+            mints_df['pool.token1.symbol'] = row['pool.token1.symbol']
+            burns_df['pool.token0.symbol'] = row['pool.token0.symbol']
+            burns_df['pool.token1.symbol'] = row['pool.token1.symbol']
 
             all_mints_df = pd.concat([all_mints_df, mints_df], axis=0)
             all_burns_df = pd.concat([all_burns_df, burns_df], axis=0)
@@ -65,6 +84,7 @@ class PoolDaysDataNormalizer:
         all_burns_df.reset_index(drop=True, inplace=True)
 
         return all_mints_df, all_burns_df
+    
 class DataStore:
     def __init__(self):
         # Initialize data storage here

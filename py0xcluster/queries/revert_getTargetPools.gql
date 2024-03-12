@@ -26,15 +26,24 @@ query getTargetPools($first: Int,
   ) 
     {
     date
-    feeGrowthGlobal0X128
-    feeGrowthGlobal1X128
-    feesUSD
-    high
-    close
+    feesUSD    
     id
     liquidity
-    low
+    volumeUSD
+    tvlUSD
+    txCount
     open
+    high
+    low
+    close
+    token0Price
+    token1Price
+    volumeToken1
+    volumeToken0
+    tick
+    sqrtPrice
+      feeGrowthGlobal0X128
+    feeGrowthGlobal1X128
     pool {
       id
       feeTier
@@ -96,14 +105,5 @@ query getTargetPools($first: Int,
         symbol
       }
     }
-    token0Price
-    token1Price
-    tvlUSD
-    volumeUSD
-    volumeToken1
-    volumeToken0
-    txCount
-    tick
-    sqrtPrice
   }
 }
