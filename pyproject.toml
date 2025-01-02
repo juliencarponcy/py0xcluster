@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "py0xcluster"
+version = "0.3.0"
+description = "ETL pipelines for web3 liquidity pools data analysis (from the Graph network)"
+authors = ["Julien Carponcy <juliencarponcy@gmail.com>"]
+license = "MIT Licence"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+gql = "^3.5.0"
+web3 = "^7.6.1"
+ipykernel = "^6.29.5"
+pandas = "^2.2.3"
+requests-toolbelt = "^1.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
